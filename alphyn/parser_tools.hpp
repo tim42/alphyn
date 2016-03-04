@@ -31,6 +31,7 @@
 #include <tools/genseq.hpp>
 #include <tools/execute_pack.hpp>
 
+#include "grammar_attributes.hpp"
 #include "lexem_list.hpp"
 
 namespace neam
@@ -39,13 +40,13 @@ namespace neam
   {
     namespace alphyn
     {
-      /// \brief Manages lists of union tuple
+      /// \brief Manages lists of tuples
       /// The stack is stack-allocated, so no dynamic allocation here
-      template<size_t MaxCount, typename TypeT, typename TypeList>
-      class union_tuple_stack
+      template<typename SyntaxClass, size_t MaxCount, typename TypeT, typename TypeList>
+      class tuple_stack
       {
         public:
-          constexpr union_tuple_stack() = default;
+          constexpr tuple_stack() = default;
 
           /// \brief Push a new value to the stack
           template<typename T>
@@ -63,22 +64,45 @@ namespace neam
             return stack[stack_size - 1 - index].template get<T>();
           }
 
+        private:
           template<typename Ret, typename... Args, size_t... Idxs>
           constexpr Ret _fwd_call(Ret (*function)(Args...), size_t initial, cr::seq<Idxs...>)
           {
             return function(stack[initial + Idxs].template get<Args>()...);
           }
 
+          template<typename Ret, typename... Args>
+          constexpr void sub_call_pop_push(Ret (*function)(Args...), size_t dest_elem)
+          {
+            stack[dest_elem].template set<Ret>(_fwd_call(function, dest_elem, cr::gen_seq<sizeof...(Args)>()));
+          }
+
+          template<template<e_forward_mode> class Type>
+          constexpr void sub_call_pop_push(Type<e_forward_mode::direct>, size_t dest_elem)
+          {
+            using attr = Type<e_forward_mode::direct>;
+            if (attr::index > 0)
+              stack[dest_elem] = stack[dest_elem + attr::index];
+          }
+
+          template<template<e_forward_mode> class Type>
+          constexpr void sub_call_pop_push(Type<e_forward_mode::token_value>, size_t dest_elem)
+          {
+            using attr = Type<e_forward_mode::direct>;
+            using result_type = typename SyntaxClass::token_type::value_t;
+            stack[dest_elem].template set<result_type>(stack[dest_elem + attr::index].get<typename SyntaxClass::token_type>().value);
+          }
+
+        public:
           /// \brief Call function, pop the number number of argument, and push the return value
           /// \note Before using this, matches_production_rule must have returned true ! (no check are performed)
           /// \return the state to go
-          template<typename Ret, typename... Args>
-          constexpr size_t call_pop_push(TypeT type, Ret (*function)(Args...))
+          template<size_t Count, typename Type>
+          constexpr size_t call_pop_push(TypeT type, Type t)
           {
-            const size_t dest_elem = stack_size - (sizeof...(Args));
-            size_t incr = dest_elem;
+            const size_t dest_elem = stack_size - (Count);
             // it both call and push
-            stack[dest_elem].template set<Ret>(_fwd_call(function, incr, cr::gen_seq<sizeof...(Args)>()));
+            sub_call_pop_push(t, dest_elem);
             type_stack[dest_elem] = type;
             stack_size = dest_elem + 1;
 
@@ -96,6 +120,7 @@ namespace neam
           {
             return type_stack[stack_size - 1];
           }
+
           /// \brief Return the top type. The stack must not be empty !
           constexpr TypeT get_type(size_t index = 0) const
           {
@@ -103,7 +128,7 @@ namespace neam
           }
 
           /// \brief Check if a prod rule matches the stack
-          template<typename SyntaxClass, typename FollowSet, typename... T>
+          template<typename FollowSet, typename... T>
           constexpr bool matches_production_rule(const lexem_list<SyntaxClass> &lookahead)
           {
             if (sizeof...(T) > stack_size)
@@ -117,33 +142,34 @@ namespace neam
             if (!FollowSet::size && res)
               return lookahead.is_last();
             if (res)
-              return follow_set<SyntaxClass, FollowSet>::matches(lookahead.get_token().type);
+              return follow_set<FollowSet>::matches(lookahead.get_token().type);
             return false;
           }
 
           template<typename T> struct production_rule_matcher {};
           template<typename... T> struct production_rule_matcher<ct::type_list<T...>>
           {
-            template<typename FollowSet, typename SyntaxClass>
-            constexpr static bool test(union_tuple_stack &s, const lexem_list<SyntaxClass> &lookahead)
+            template<typename FollowSet>
+            constexpr static bool test(tuple_stack &s, const lexem_list<SyntaxClass> &lookahead)
             {
-              return s.matches_production_rule<SyntaxClass, FollowSet, T...>(lookahead);
+              return s.matches_production_rule<FollowSet, T...>(lookahead);
             }
           };
 
         private:
-          template<typename SyntaxClass, typename FollowList>
+          template<typename FollowList, bool = false>
           struct follow_set
           {
             constexpr static bool matches(typename SyntaxClass::token_type::type_t lookahead)
             {
               if (FollowList::front::value == lookahead)
                 return true;
-              return follow_set<SyntaxClass, typename FollowList::pop_front>::matches(lookahead);
+              return follow_set<typename FollowList::pop_front>::matches(lookahead);
             }
           };
-          template<typename SyntaxClass>
-          struct follow_set<SyntaxClass, ct::type_list<>>
+
+          template<bool X>
+          struct follow_set<ct::type_list<>, X>
           {
             constexpr static bool matches(typename SyntaxClass::token_type::type_t)
             {
@@ -173,7 +199,7 @@ namespace neam
           {
             using rule = typename List::front;
             if (uts_t::template production_rule_matcher<typename rule::as_type_list>::template test<typename rule::follow_set>(s, lookahead))
-              return s.call_pop_push(rule::rule_name, rule::attribute::function);
+              return s.template call_pop_push<rule::as_type_list::size>(rule::rule_name, rule::attribute::function);
             return production_rule_matcher<typename List::pop_front, false>::test(s, lookahead);
           }
         };

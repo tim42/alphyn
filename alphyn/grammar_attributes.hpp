@@ -38,11 +38,8 @@ namespace neam
       /// \brief Some special attributes
       enum class e_special_attributes
       {
-        fallthrough,            ///< \brief The attribute only takes one parameter and return it.
-        fallthrough_one,        ///< \brief The attribute takes some parameters and return only one of them.
-        value_fallthrough,      ///< \brief The attribute only takes one parameter and return its value. (the parameter must be a token_type/terminal)
-        value_fallthrough_one,  ///< \brief The attribute takes some parameters and return the value one only one of them. (that parameter must be a token_type/terminal)
-        synthesizer,            ///< \brief The attribute takes some parameters and calls the 'synthesize(...)' static method on a class
+        forward,            ///< \brief The attribute sets the result of the production rule to one of production elements.
+        value_forward,      ///< \brief The attribute sets the result of the production rule to one of production element's value.
       };
 
       /// \brief Specify an attribute (via function) for the production_rule
@@ -54,21 +51,13 @@ namespace neam
 #     define ALPHYN_ATTRIBUTE(func)  neam::ct::alphyn::attribute<decltype(func), func>
 
       // aliases
-      template<typename Type>
-      using fallthrough_attribute = attribute<e_special_attributes, e_special_attributes::fallthrough, Type>;
+      template<size_t Index = 0>
+      using forward_attribute = attribute<e_special_attributes, e_special_attributes::forward, embed::embed<size_t, Index>>;
+      using forward_first_attribute = forward_attribute<0>;
 
-      template<size_t Index>
-      using fallthrough_one_attribute = attribute<e_special_attributes, e_special_attributes::fallthrough_one, embed::embed<size_t, Index>>;
-
-      template<typename Type>
-      using value_fallthrough_attribute = attribute<e_special_attributes, e_special_attributes::value_fallthrough, Type>;
-
-      template<size_t Index>
-      using value_fallthrough_one_attribute = attribute<e_special_attributes, e_special_attributes::value_fallthrough_one, embed::embed<size_t, Index>>;
-
-      template<typename Synthesizer>
-      using synthesize_attribute = attribute<e_special_attributes, e_special_attributes::synthesizer, Synthesizer>;
-
+      template<size_t Index = 0>
+      using value_forward_attribute = attribute<e_special_attributes, e_special_attributes::value_forward, embed::embed<size_t, Index>>;
+      using value_forward_first_attribute = value_forward_attribute<0>;
 
       // specialisation of attribute for functions
       template<typename Ret, typename... Args, Ret (*Function)(Args...)>
@@ -86,133 +75,43 @@ namespace neam
         }
       };
 
-      // specialisation of attribute for methods
-      // NOTE: not tested, may not work.
-      template<typename Ret, typename Class, typename... Args, Ret (Class::*Function)(Args...)>
-      struct attribute<Ret (Class::*)(Args...), Function>
-      {
-        using return_type = Ret;
-        static constexpr long arity = sizeof...(Args) + 1;
-        static constexpr Ret (Class::*_function)(Args...) = Function;
-
-        static constexpr Ret function(Class &c, Args... args)
-        {
-          return (c.*_function)(std::forward<Args>(args)...);
-        }
-      };
-      // specialisation of attribute for const methods
-      // NOTE: not tested, may not work.
-      template<typename Ret, typename Class, typename... Args, Ret (Class::*Function)(Args...) const>
-      struct attribute<Ret (Class::*)(Args...) const, Function>
-      {
-        using return_type = Ret;
-        static constexpr long arity = sizeof...(Args) + 1;
-        static constexpr Ret (Class::*_function)(Args...) const = Function;
-
-        static constexpr Ret function(const Class &c, Args... args)
-        {
-          return (c.*_function)(std::forward<Args>(args)...);
-        }
-      };
-
       // // special attribute handling // //
 
-      // we just forward the attribute
-      template<typename Type>
-      struct attribute<e_special_attributes, e_special_attributes::fallthrough, Type>
+      // internal. (TODO: make an internal namespace)
+      enum class e_forward_mode
       {
-        using return_type = Type;
-        static constexpr long arity = 1;
-
-        static constexpr Type function(Type val)
-        {
-          return std::forward<Type>(val);
-        }
-      };
-
-      // we just forward the attribute
-      template<typename Type>
-      struct attribute<e_special_attributes, e_special_attributes::value_fallthrough, Type>
-      {
-        using return_type = Type;
-        static constexpr long arity = 1;
-
-        static constexpr decltype(Type::value) function(Type val)
-        {
-          return (val.value);
-        }
-      };
-
-      // we just forward to the Synthesizer class
-      template<typename Synthesizer>
-      struct attribute<e_special_attributes, e_special_attributes::synthesizer, Synthesizer>
-      {
-        using return_type = void; // not accounted :/
-        static constexpr long arity = 0; // not accounted
-
-        template<typename... Types>
-        static constexpr auto function(Types... vals)
-        {
-          return Synthesizer::synthesize(std::forward<Types>(vals)...);
-        }
+        direct,
+        token_value
       };
 
       // we just forward one attribute
       template<size_t Index>
-      struct attribute<e_special_attributes, e_special_attributes::fallthrough_one, embed::embed<size_t, Index>>
+      struct attribute<e_special_attributes, e_special_attributes::forward, embed::embed<size_t, Index>>
       {
         using return_type = void; // not accounted
         static constexpr long arity = -long(Index + 1); // minimum / not accounted
 
-        template<typename RetType, size_t CIndex, typename Current, typename... Other>
-        static constexpr RetType _rec(Current c, Other... o)
+        template<e_forward_mode = e_forward_mode::direct>
+        struct function_t
         {
-          if (CIndex == 0)
-            return std::forward<RetType>(c);
-          return _rec<RetType, CIndex - 1, Other...>(std::forward<Other>(o)...);
-        }
-        template<typename RetType, size_t CIndex>
-        static constexpr RetType _rec()
-        {
-          static_assert(!(sizeof(RetType) + 1), "fallthrough_one_attribute: Index out of range");
-          return RetType();
-        }
-
-        template<typename... Types>
-        static constexpr auto function(Types... val) -> typename ct::type_at_index<Index, Types...>::type
-        {
-          using ret_type = typename ct::type_at_index<Index, Types...>::type;
-          return _rec<ret_type, Index>();
-        }
+          static constexpr size_t index = Index;
+        };
+        static constexpr function_t<> function = function_t<>();
       };
 
       // we just forward one attribute's value
       template<size_t Index>
-      struct attribute<e_special_attributes, e_special_attributes::value_fallthrough_one, embed::embed<size_t, Index>>
+      struct attribute<e_special_attributes, e_special_attributes::value_forward, embed::embed<size_t, Index>>
       {
-        using return_type = void; // not accounted
+        using return_type = void;
         static constexpr long arity = -long(Index + 1); // minimum / not accounted
 
-        template<typename RetType, size_t CIndex, typename Current, typename... Other>
-        static constexpr RetType _rec(Current c, Other... o)
+        template<e_forward_mode = e_forward_mode::token_value>
+        struct function_t
         {
-          if (CIndex == 0)
-            return std::forward<RetType>(c);
-          return _rec<RetType, CIndex - 1, Other...>(std::forward<Other>(o)...);
-        }
-        template<typename RetType, size_t CIndex>
-        static constexpr RetType _rec()
-        {
-          static_assert(!(sizeof(RetType) + 1), "fallthrough_one_attribute: Index out of range");
-          return RetType();
-        }
-
-        template<typename... Types>
-        static constexpr auto function(Types... val) -> decltype(ct::type_at_index<Index, Types...>::type::value)
-        {
-          using ret_type = typename ct::type_at_index<Index, Types...>::type;
-          return _rec<ret_type, Index>().value;
-        }
+          static constexpr size_t index = Index;
+        };
+        static constexpr function_t<> function = function_t<>();
       };
     } // namespace alphyn
   } // namespace ct

@@ -31,6 +31,7 @@ struct math_eval
 //     tok_par_open,
 //     tok_par_close,
 
+    // non-terminal
     start,
     sum,
     prod,
@@ -113,31 +114,37 @@ struct math_eval
   static constexpr float attr_mul(float n1, const token_type &, float n2) { return n1 * n2; }
   static constexpr float attr_div(float n1, const token_type &, float n2) { return n1 / n2; }
 
-  static constexpr float attr_fwd(const token_type &, float n2) { return n2; }
-  static constexpr float attr_fwd1(float n2, const token_type &) { return n2; }
-
   /// \brief The parser grammar
   using grammar = neam::ct::alphyn::grammar<math_eval, start,
-    production_rule_set<start, production_rule<ALPHYN_ATTRIBUTE(&attr_fwd1), sum, tok_end>>,
+    production_rule_set<start, production_rule<neam::ct::alphyn::forward_first_attribute, sum, tok_end>>,
 
     production_rule_set<sum,
-      production_rule<neam::ct::alphyn::fallthrough_attribute<long>, prod>,
+      production_rule<neam::ct::alphyn::forward_first_attribute, prod>,
       production_rule<ALPHYN_ATTRIBUTE(&attr_add), sum, tok_add, prod>,
       production_rule<ALPHYN_ATTRIBUTE(&attr_sub), sum, tok_sub, prod>
     >,
     production_rule_set<prod,
-      production_rule<neam::ct::alphyn::fallthrough_attribute<long>, val>,
+      production_rule<neam::ct::alphyn::forward_first_attribute, val>,
       production_rule<ALPHYN_ATTRIBUTE(&attr_mul), prod, tok_mul, val>,
       production_rule<ALPHYN_ATTRIBUTE(&attr_div), prod, tok_div, val>
     >,
 
     production_rule_set<val,
-      production_rule<neam::ct::alphyn::value_fallthrough_attribute<token_type>, tok_number>
+      production_rule<neam::ct::alphyn::value_forward_first_attribute, tok_number>
     >
   >;
 
-  /// \brief The parser
-  using parser = neam::ct::alphyn::parser<math_eval>;
+  /// \brief The parser. It parses things.
+  using parser = neam::ct::alphyn::parser<math_eval, neam::ct::alphyn::on_parse_error::call_error_handler>;
+
+  /// \brief A default handler
+  template<typename ReturnType>
+  static ReturnType on_parse_error(const char *string, size_t index)
+  {
+    static_assert(std::is_same<ReturnType, float>::value, "math_eval: the return type must be <float>");
+    std::cerr << "Could not parse the string: " << (string + index) << std::endl;
+    return ReturnType(-1);
+  }
 };
 
 // create a compile-time lexem list
@@ -151,8 +158,8 @@ int main(int /*argc*/, char **/*argv*/)
 //   neam::ct::alphyn::debug_printer<math_eval>::print_graph();
 //   std::cout << "size of the automaton: " << grammar_tool::lr1_automaton::as_type_list::size << " states\n";
 
-  // Oh YEAH: (the proof that alphyn is compile-time !)
-  static_assert(math_eval::parser::parse_string<float>("2.5 * 4.0 + 2 / 1 + 4 * 2") == 20, "Well... The parser / grammar / string / ... is not OK");
+  // the proof that alphyn is compile-time:
+  static_assert(math_eval::parser::parse_string<float>("2.5 * 4.0 + 4 / 2 + 4 * 2") == 20, "Well... The parser / grammar / string / ... is not OK");
   static_assert(math_eval::parser::ct_parse_string<float, test_str>::result == 20, "Well... The parser / grammar / string / ... is not OK");
 
   std::cout << "res: " << math_eval::parser::parse_string<float>("10 + 2.5 * 2 * 5 / 2") << '\n';

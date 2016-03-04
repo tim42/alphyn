@@ -37,8 +37,22 @@ namespace neam
   {
     namespace alphyn
     {
+      /// \brief The class of action the parser can do when an error is encountered
+      /// please note that those options only applies if the parsing is done at runtime.
+      enum class on_parse_error
+      {
+        throw_exception,        ///< \brief An exception (std::runtime_error) is throw
+        print_message,          ///< \brief A message is printed on stderr. Implies throw_exception.
+        call_error_handler,     ///< \brief An error handler (located in SyntaxClass::on_parse_error) is called.
+                                /// The on_parse_error must have the following def:
+                                /// \code template<typename ReturnType> ReturnType on_parse_error(const char *s, size_t index); \endcode
+        call_advanced_error_handler,     ///< \brief An (advanced) error handler (located in SyntaxClass::on_parse_error) is called.
+                                /// The on_parse_error must have the following def:
+                                /// \code template<typename ReturnType> ReturnType on_parse_error(const char *str, size_t start_index, uts_t &stack, lexem_list<SyntaxClass> &current_token); \endcode
+      };
+
       /// \brief The Alphyn parser
-      template<typename SyntaxClass>
+      template<typename SyntaxClass, on_parse_error OnErrAct = on_parse_error::throw_exception>
       class parser
       {
         private:
@@ -46,7 +60,7 @@ namespace neam
 
         public:
           using automaton_list = typename automaton::as_type_list;
-          using uts_t = union_tuple_stack<automaton_list::size, typename SyntaxClass::token_type::type_t, typename SyntaxClass::grammar::return_type_list>;
+          using uts_t = tuple_stack<SyntaxClass, automaton_list::size, typename SyntaxClass::token_type::type_t, typename SyntaxClass::grammar::return_type_list>;
 
         private: // compile-time
           /// \brief Should be done in another classy way (a way full of template and types),
@@ -108,8 +122,50 @@ namespace neam
           }
 
         private:
+          /// \brief Call (or not) an handler
+          template<typename ReturnType, on_parse_error OPE> struct _on_error_switcher
+          {
+            static ReturnType call_handler(const char *, size_t, uts_t &, lexem_list<SyntaxClass> &)
+            {
+              return ReturnType();
+            }
+          };
+
+          /// \brief Called when an error occurs
           template<typename ReturnType>
           static ReturnType on_error(const char *str, size_t start_index, uts_t &stack, lexem_list<SyntaxClass> &ll)
+          {
+            if (OnErrAct == on_parse_error::print_message)
+              on_error_print_message(str, start_index, stack, ll);
+            if (OnErrAct == on_parse_error::print_message || OnErrAct == on_parse_error::throw_exception)
+              throw std::runtime_error(std::string("alphyn::parse_string: could not parse the string") /* + ...*/);
+
+            if (OnErrAct == on_parse_error::call_error_handler)
+              return _on_error_switcher<ReturnType, OnErrAct>::call_handler(str, start_index, stack, ll);
+          };
+
+          /// \brief Call a "simple" handler
+          template<typename ReturnType>
+          struct _on_error_switcher<ReturnType, on_parse_error::call_error_handler>
+          {
+            static ReturnType call_handler(const char *string, size_t index, uts_t &, lexem_list<SyntaxClass> &)
+            {
+              return SyntaxClass::template on_parse_error<ReturnType>(string, index);
+            }
+          };
+
+          /// \brief Call a more advanced handler
+          template<typename ReturnType>
+          struct _on_error_switcher<ReturnType, on_parse_error::call_advanced_error_handler>
+          {
+            static ReturnType call_handler(const char *string, size_t index, uts_t &stack, lexem_list<SyntaxClass> &ll)
+            {
+              return SyntaxClass::template on_parse_error<ReturnType>(string, index, stack, ll);
+            }
+          };
+
+          /// \brief Print an error message
+          static void on_error_print_message(const char *str, size_t start_index, uts_t &stack, lexem_list<SyntaxClass> &ll)
           {
             std::cerr << "\n -- -- SYNTAX ERROR -- --" << std::endl;
             if (stack.size())
@@ -129,18 +185,16 @@ namespace neam
                 std::cerr << "All the tokens has been consumed,\nit looks like your string contains some invalid formation,\nsomewhere\n";
             }
             catch (...) {}
-//             if (stack.size())
-//             {
-//               std::cout << "stack: \n";
-//               for (size_t i = 0; i < stack.size(); ++i)
-//                 std::cout << "       " << SyntaxClass::get_name_for_token_type(stack.get_type(i)) << '\n';
-//             }
-//             else
-//               std::cout << "[EMPTY STACK]" << std::endl;
+            if (stack.size())
+            {
+              std::cout << "stack: \n";
+              for (size_t i = 0; i < stack.size(); ++i)
+                std::cout << "       " << SyntaxClass::get_name_for_token_type(stack.get_type(i)) << '\n';
+            }
+            else
+              std::cout << "[EMPTY STACK]" << std::endl;
             std::cerr << " -- -- SYNTAX ERROR -- --\n" << std::endl;
-
-            throw std::runtime_error(std::string("alphyn::parse_string: could not parse the string") /* + ...*/);
-          };
+          }
       };
     } // namespace alphyn
   } // namespace ct
