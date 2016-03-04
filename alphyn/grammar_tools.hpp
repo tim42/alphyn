@@ -424,7 +424,7 @@ namespace neam
         };
 
         // is in stack filter
-        template<typename X> using stack_elem = ct::type_list<X>;
+        template<typename X> using stack_elem = ct::type_list<X/*, PRWList*/>;
         template<typename X> using is_in_stack = typename Stack::template is_in_list<stack_elem<X>>;
 
         // the list of non-terminals
@@ -432,13 +432,28 @@ namespace neam
         // the new stack
         using new_stack = typename Stack::template append_list<typename nonterminal_list::template direct_for_each<stack_elem>>;
 
+        template<typename PRW, bool HasFollowing>
+        struct _sub_lookahead_switch
+        {
+          // we have a following element
+          using type = typename _first_or_name<SyntaxClass, PRW::as_type_list::template get_type<PRW::position + 1>::value>::list;
+        };
+        template<typename PRW>
+        struct _sub_lookahead_switch<PRW, false>
+        {
+          // we don't have a following element
+          using type = ctx_look_ahead;
+        };
+        template<typename PRW>
+        using apply_sub_lookahead = typename _sub_lookahead_switch<PRW, (PRW::position < (PRW::as_type_list::size - 1))>::type;
+
         template<typename List, bool IsEmtpy>
         struct sub_closure_result { using type = ct::type_list<>; };
         template<typename List>
         struct sub_closure_result<List, false>
         {
-          using _ctx_look_ahead = typename List::template direct_for_each<apply_lookahead>::flatten::make_unique;
-//           using _ctx_look_ahead = ctx_look_ahead; // LALR ? SLR ? a mix between those two ?
+          using _ctx_look_ahead = typename List::template direct_for_each<apply_sub_lookahead>::flatten::make_unique;
+//           using _ctx_look_ahead = ctx_look_ahead; // LALR ? SLR ? a mix between those two ? invalid ?
 
           using type = typename _closure<SyntaxClass, List, _ctx_look_ahead, new_stack>::list;
         };

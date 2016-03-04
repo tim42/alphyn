@@ -15,12 +15,12 @@ endif()
 
 # some gcc/clang flags
 if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
-  set(PROJ_FLAGS "${PROJ_FLAGS} -std=gnu++17 -Wall -Wextra -Wno-unused-function")
+  set(PROJ_FLAGS "${PROJ_FLAGS} -std=gnu++14 -Wall -Wextra -Wno-unused-function")
 
   if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(PROJ_FLAGS "${PROJ_FLAGS} -Og -fno-inline")
   else(CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(PROJ_FLAGS "${PROJ_FLAGS} -O3 -finline-limit=50000 -fmerge-constants -fmerge-all-constants")
+    set(PROJ_FLAGS "${PROJ_FLAGS} -O3 -finline-limit=100 -fmerge-constants -fmerge-all-constants")
   else(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
     set(PROJ_FLAGS "${PROJ_FLAGS} -Os -fmerge-constants -fmerge-all-constants")
   endif()

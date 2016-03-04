@@ -90,7 +90,7 @@ namespace neam
           {
             using attr = Type<e_forward_mode::direct>;
             using result_type = typename SyntaxClass::token_type::value_t;
-            stack[dest_elem].template set<result_type>(stack[dest_elem + attr::index].get<typename SyntaxClass::token_type>().value);
+            stack[dest_elem].template set<result_type>(stack[dest_elem + attr::index].template get<typename SyntaxClass::token_type>().value);
           }
 
         public:

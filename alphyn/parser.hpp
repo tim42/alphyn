@@ -182,7 +182,7 @@ namespace neam
                 std::cerr << std::string(strlen(str) - start_index - toptk.start_index - 1, '~');
               std::cerr << '\n';
               if (ll.is_last() && ll.get_token().is_valid())
-                std::cerr << "All the tokens has been consumed,\nit looks like your string contains some invalid formation,\nsomewhere\n";
+                std::cerr << "All the tokens have been consumed,\nit looks like your string contains some invalid formation,\nsomewhere\n";
             }
             catch (...) {}
             if (stack.size())

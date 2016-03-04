@@ -28,11 +28,12 @@ struct math_eval
     tok_sub,
     tok_mul,
     tok_div,
-//     tok_par_open,
-//     tok_par_close,
+    tok_par_open,
+    tok_par_close,
 
     // non-terminal
     start,
+    expr,
     sum,
     prod,
     val,
@@ -48,9 +49,10 @@ struct math_eval
       case math_eval::tok_sub: return "tok_sub";
       case math_eval::tok_mul: return "tok_mul";
       case math_eval::tok_div: return "tok_div";
-//       case math_eval::tok_par_open: return "tok_par_open";
-//       case math_eval::tok_par_close: return "tok_par_close";
+      case math_eval::tok_par_open: return "tok_par_open";
+      case math_eval::tok_par_close: return "tok_par_close";
       case math_eval::start: return "[start]";
+      case math_eval::expr: return "[expr]";
       case math_eval::sum: return "[sum]";
       case math_eval::prod: return "[prod]";
       case math_eval::val: return "[val]";
@@ -87,8 +89,8 @@ struct math_eval
     neam::ct::alphyn::syntactic_unit<neam::ct::alphyn::letter<'-'>, token_type, token_type::generate_token_with_type<e_token_type::tok_sub>>,
     neam::ct::alphyn::syntactic_unit<neam::ct::alphyn::letter<'*'>, token_type, token_type::generate_token_with_type<e_token_type::tok_mul>>,
     neam::ct::alphyn::syntactic_unit<neam::ct::alphyn::letter<'/'>, token_type, token_type::generate_token_with_type<e_token_type::tok_div>>,
-//     neam::ct::alphyn::syntactic_unit<neam::ct::alphyn::letter<'('>, token_type, token_type::generate_token_with_type<e_token_type::tok_par_open>>,
-//     neam::ct::alphyn::syntactic_unit<neam::ct::alphyn::letter<')'>, token_type, token_type::generate_token_with_type<e_token_type::tok_par_close>>,
+    neam::ct::alphyn::syntactic_unit<neam::ct::alphyn::letter<'('>, token_type, token_type::generate_token_with_type<e_token_type::tok_par_open>>,
+    neam::ct::alphyn::syntactic_unit<neam::ct::alphyn::letter<')'>, token_type, token_type::generate_token_with_type<e_token_type::tok_par_close>>,
     neam::ct::alphyn::syntactic_unit<neam::ct::alphyn::regexp<re_number>, token_type, e_number>,
     neam::ct::alphyn::syntactic_unit<neam::ct::alphyn::regexp<re_end>, token_type, token_type::generate_token_with_type<e_token_type::tok_end>>
   >;
@@ -116,26 +118,29 @@ struct math_eval
 
   /// \brief The parser grammar
   using grammar = neam::ct::alphyn::grammar<math_eval, start,
-    production_rule_set<start, production_rule<neam::ct::alphyn::forward_first_attribute, sum, tok_end>>,
+    production_rule_set<start,
+      production_rule<neam::ct::alphyn::forward_first_attribute, sum, tok_end>      // start -> sum
+    >,
 
     production_rule_set<sum,
-      production_rule<neam::ct::alphyn::forward_first_attribute, prod>,
-      production_rule<ALPHYN_ATTRIBUTE(&attr_add), sum, tok_add, prod>,
-      production_rule<ALPHYN_ATTRIBUTE(&attr_sub), sum, tok_sub, prod>
+      production_rule<neam::ct::alphyn::forward_first_attribute, prod>,             // sum -> prod
+      production_rule<ALPHYN_ATTRIBUTE(&attr_add), sum, tok_add, prod>,             // sum -> sum + prod
+      production_rule<ALPHYN_ATTRIBUTE(&attr_sub), sum, tok_sub, prod>              // sum -> sum - prod
     >,
     production_rule_set<prod,
-      production_rule<neam::ct::alphyn::forward_first_attribute, val>,
-      production_rule<ALPHYN_ATTRIBUTE(&attr_mul), prod, tok_mul, val>,
-      production_rule<ALPHYN_ATTRIBUTE(&attr_div), prod, tok_div, val>
+      production_rule<neam::ct::alphyn::forward_first_attribute, val>,              // prod -> val
+      production_rule<ALPHYN_ATTRIBUTE(&attr_mul), prod, tok_mul, val>,             // prod -> prod * val
+      production_rule<ALPHYN_ATTRIBUTE(&attr_div), prod, tok_div, val>              // prod -> prod / val
     >,
 
     production_rule_set<val,
-      production_rule<neam::ct::alphyn::value_forward_first_attribute, tok_number>
+      production_rule<neam::ct::alphyn::value_forward_first_attribute, tok_number>,               // val -> number
+      production_rule<neam::ct::alphyn::forward_attribute<1>, tok_par_open, sum, tok_par_close>   // val -> ( sum )
     >
   >;
 
   /// \brief The parser. It parses things.
-  using parser = neam::ct::alphyn::parser<math_eval, neam::ct::alphyn::on_parse_error::call_error_handler>;
+  using parser = neam::ct::alphyn::parser<math_eval, neam::ct::alphyn::on_parse_error::print_message/*call_error_handler*/>;
 
   /// \brief A default handler
   template<typename ReturnType>
@@ -159,19 +164,23 @@ int main(int /*argc*/, char **/*argv*/)
 //   std::cout << "size of the automaton: " << grammar_tool::lr1_automaton::as_type_list::size << " states\n";
 
   // the proof that alphyn is compile-time:
-  static_assert(math_eval::parser::parse_string<float>("2.5 * 4.0 + 4 / 2 + 4 * 2") == 20, "Well... The parser / grammar / string / ... is not OK");
-  static_assert(math_eval::parser::ct_parse_string<float, test_str>::result == 20, "Well... The parser / grammar / string / ... is not OK");
+//   static_assert(math_eval::parser::parse_string<float>("2.5 * 4.0 + 4 / 2 + 4 * 2") == 20, "Well... The parser / grammar / string / ... is not OK");
+//   static_assert(math_eval::parser::ct_parse_string<float, test_str>::result == 20, "Well... The parser / grammar / string / ... is not OK");
 
-  std::cout << "res: " << math_eval::parser::parse_string<float>("10 + 2.5 * 2 * 5 / 2") << '\n';
+  std::cout << "res: " << math_eval::parser::parse_string<float>("(1+1) * 2.5 + 5 / 2 * (3 - 0.5)") << '\n';
+
+//   return 0;
 
   // speed test //
+  neam::cr::chrono chr;
   std::string expr = "1";
   // it generates a string with one-character tokens, some separated by white-space tokens
   for (size_t i = 0; i < 130 * 1000 * 1000; ++i) expr += " + 0 * 1";
-  std::cout << "generated an expression of " << (expr.size() / 1000 / 1000) << "MToken" << std::endl;
-  neam::cr::chrono chr;
+  double dtime = chr.delta();
+  std::cout << "generated an expression of " << (expr.size() / 1000 / 1000) << "MToken [" << dtime << "s]" << std::endl;
   std::cout << "TEST1: " << math_eval::parser::parse_string<float>(expr.c_str()) << '\n';
-  std::cout << "dtime: " << chr.get_accumulated_time() << "s [" << (float(expr.size() / 1000 / 1000) / chr.get_accumulated_time()) << "MToken/s]" << std::endl;
-
+  double acctime = chr.get_accumulated_time();
+  std::cout << "dtime: " << acctime << "s [" << (float(expr.size() / 1000 / 1000) / acctime) << "MToken/s]" << std::endl;
+  std::cout << "  -> " << "parser is " << (acctime / dtime) << "x slower than the generation"<< std::endl;
   return 0;
 }
