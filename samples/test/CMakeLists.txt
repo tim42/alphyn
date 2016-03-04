@@ -10,7 +10,7 @@ set(SAMPLE_NAME "test-${PROJ_APP}")
 # avoid listing all the files
 file(GLOB_RECURSE srcs ./*.cpp ./*.hpp)
 
-add_definitions(${PROJ_FLAGS} -pthread)
+add_definitions(${PROJ_FLAGS} -fwhole-program)
 
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${PROJ_FLAGS}")
 set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} ${PROJ_FLAGS}")

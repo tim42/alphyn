@@ -15,7 +15,7 @@ endif()
 
 # some gcc/clang flags
 if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
-  set(PROJ_FLAGS "${PROJ_FLAGS} -std=gnu++14 -Wall -Wextra -Wno-unused-function")
+  set(PROJ_FLAGS "${PROJ_FLAGS} -std=gnu++17 -Wall -Wextra -Wno-unused-function")
 
   if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(PROJ_FLAGS "${PROJ_FLAGS} -Og -fno-inline")

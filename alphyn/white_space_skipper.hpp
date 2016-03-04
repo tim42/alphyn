@@ -1,9 +1,9 @@
 //
-// file : alphyn.hpp
-// in : file:///home/tim/projects/alphyn/alphyn/alphyn.hpp
+// file : white_space_skipper.hpp
+// in : file:///home/tim/projects/alphyn/alphyn/white_space_skipper.hpp
 //
 // created by : Timothée Feuillet on linux-vnd3.site
-// date: Mon Feb 22 2016 14:31:27 GMT+0100 (CET)
+// date: Mon Feb 22 2016 17:55:52 GMT+0100 (CET)
 //
 //
 // Copyright (C) 2016 Timothée Feuillet
@@ -23,12 +23,10 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 //
 
-#ifndef __N_397417874160116481_2934617078__ALPHYN_HPP__
-# define __N_397417874160116481_2934617078__ALPHYN_HPP__
+#ifndef __N_15829324212571418681_1410214124__WHITE_SPACE_SKIPPER_HPP__
+# define __N_15829324212571418681_1410214124__WHITE_SPACE_SKIPPER_HPP__
 
-#include "lexer.hpp"
-#include "grammar.hpp"
-#include "parser.hpp"
+#include "lexer_skip.hpp"
 
 namespace neam
 {
@@ -36,9 +34,10 @@ namespace neam
   {
     namespace alphyn
     {
-      
+      /// \brief A skipper that skip white spaces (' ', '\t', '\n')
+      using white_space_skipper = skip_syntax<skip_unit<letter<' ', '\t', '\n'>>>;
     } // namespace alphyn
   } // namespace ct
 } // namespace neam
 
-#endif /*__N_397417874160116481_2934617078__ALPHYN_HPP__*/
+#endif /*__N_15829324212571418681_1410214124__WHITE_SPACE_SKIPPER_HPP__*/
