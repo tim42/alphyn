@@ -1,5 +1,7 @@
 
-`alphyn`, a simple, compile-time LR parser.
+`alphyn`: a simple, compile-time LR(1) parser.
+
+Ever wanted to write a compiler within a compiler ? Now it's possible with `alphyn` (and some work).
 
 ### note
 
@@ -17,4 +19,7 @@ cmake ..
 make
 ```
 
-tested with gcc 5.2.1
+tested with g++ 5.3.1 *(may give strange results or even not compile with clang)*
+
+
+Made by Timothée Feuillet.
