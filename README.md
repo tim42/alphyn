@@ -21,7 +21,8 @@ cmake ..
 make
 ```
 
-tested with g++ 5.3.1 *(may give strange results or even not compile with clang)*
+> works great with g++ 5.3.1 <br/>
+> clang++ 3.7.0 does **not** handle the awesomeness of alphyn
 
 
 Made by Timothée Feuillet.
