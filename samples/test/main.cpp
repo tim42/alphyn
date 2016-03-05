@@ -14,9 +14,9 @@ struct math_eval
 {
   // token relative things (type and invalid)
   using token_type = neam::ct::alphyn::token<float>;
-  using type_t = token_type::type_t;
+  using type_t = typename token_type::type_t;
 
-  /// \brief possible type for a token
+  /// \brief possible "types" for a token
   enum e_token_type : type_t
   {
     invalid = neam::ct::alphyn::invalid_token_type,
@@ -31,7 +31,7 @@ struct math_eval
     tok_par_open,
     tok_par_close,
 
-    // non-terminal
+    // non-terminals
     start,
     expr,
     sum,
@@ -152,20 +152,20 @@ struct math_eval
   }
 };
 
+// a test string:
+constexpr neam::string_t test_str = "(10 + 5) * 2";
 // create a compile-time lexem list
-constexpr neam::string_t test_str = "10 + 5 * 2";
-auto initial_token = math_eval::lexer::ct_lexem_list<test_str>::token;
+// auto initial_token = math_eval::lexer::ct_lexem_list<test_str>::token;
 
 
 int main(int /*argc*/, char **/*argv*/)
 {
 //   std::cout << "automaton: \n";
 //   neam::ct::alphyn::debug_printer<math_eval>::print_graph();
-//   std::cout << "size of the automaton: " << grammar_tool::lr1_automaton::as_type_list::size << " states\n";
 
   // the proof that alphyn is compile-time:
-//   static_assert(math_eval::parser::parse_string<float>("2.5 * 4.0 + 4 / 2 + 4 * 2") == 20, "Well... The parser / grammar / string / ... is not OK");
-//   static_assert(math_eval::parser::ct_parse_string<float, test_str>::result == 20, "Well... The parser / grammar / string / ... is not OK");
+  static_assert(math_eval::parser::parse_string<float>("2.5 * 4.0 + 4 / 2 + 4 * 2") == 20, "Well... The parser / grammar / string / ... is not OK");
+  static_assert(math_eval::parser::ct_parse_string<float, test_str>::result == 30, "Well... The parser / grammar / string / ... is not OK");
 
   std::cout << "res: " << math_eval::parser::parse_string<float>("(1+1) * 2.5 + 5 / 2 * (3 - 0.5)") << '\n';
 
@@ -176,11 +176,11 @@ int main(int /*argc*/, char **/*argv*/)
   std::string expr = "1";
   // it generates a string with one-character tokens, some separated by white-space tokens
   for (size_t i = 0; i < 130 * 1000 * 1000; ++i) expr += " + 0 * 1";
-  double dtime = chr.delta();
-  std::cout << "generated an expression of " << (expr.size() / 1000 / 1000) << "MToken [" << dtime << "s]" << std::endl;
+  double gentime = chr.delta();
+  std::cout << "generated an expression of " << (expr.size() / 1000 / 1000) << "MToken [" << gentime << "s]" << std::endl;
   std::cout << "TEST1: " << math_eval::parser::parse_string<float>(expr.c_str()) << '\n';
-  double acctime = chr.get_accumulated_time();
-  std::cout << "dtime: " << acctime << "s [" << (float(expr.size() / 1000 / 1000) / acctime) << "MToken/s]" << std::endl;
-  std::cout << "  -> " << "parser is " << (acctime / dtime) << "x slower than the generation"<< std::endl;
+  double parsetime = chr.get_accumulated_time();
+  std::cout << "dtime: " << parsetime << "s [" << (float(expr.size() / 1000 / 1000) / parsetime) << "MToken/s]" << std::endl;
+  std::cout << "  -> " << "parser is " << (parsetime / gentime) << "x slower than the generation"<< std::endl;
   return 0;
 }
