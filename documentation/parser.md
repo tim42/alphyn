@@ -119,8 +119,8 @@ float result = math_eval::parser::parse_string<float>("0.5 + 0.5");
 ```
 
 If both your attributes and functions the generate tokens (a lexer thing) are `constexpr`, you are eligible to ask alphyn to perform at compile-time.
-You can then do
+You can then do:
 
 ```c++
-static_assert(float result = math_eval::parser::parse_string<float>("1+1") == 2, "Either the world has became wrong or alphyn has a problem. (please check the world)");
+static_assert(math_eval::parser::parse_string<float>("1+1") == 2, "Either the world has became wrong or alphyn has a problem. (please check the world)");
 ```
