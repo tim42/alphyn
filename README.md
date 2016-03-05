@@ -3,6 +3,8 @@
 
 Ever wanted to write a compiler within a compiler ? Now it's possible with `alphyn` (and some work).
 
+There's some documentation [here](documentation/doc.md).
+
 ### note
 
 to setup the cloned repository:
