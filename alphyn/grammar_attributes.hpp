@@ -40,6 +40,16 @@ namespace neam
       {
         forward,            ///< \brief The attribute sets the result of the production rule to one of production elements.
         value_forward,      ///< \brief The attribute sets the result of the production rule to one of production element's value.
+        synthesizer,        ///< \brief Special case of the ct-only parser. This allows working on types instead of values.
+                            ///         Does not work in parser::parse_string("bla");
+                            ///         The synthesizer is a template class that define has a `type` type, which is the result of the synthesizer.
+      };
+
+      template<template<typename... X> class Synthesizer>
+      struct wrap_synthesizer
+      {
+        template<typename... T>
+        using synthesizer = Synthesizer<T...>;
       };
 
       /// \brief Specify an attribute (via function) for the production_rule
@@ -58,6 +68,8 @@ namespace neam
       template<size_t Index = 0>
       using value_forward_attribute = attribute<e_special_attributes, e_special_attributes::value_forward, embed::embed<size_t, Index>>;
       using value_forward_first_attribute = value_forward_attribute<0>;
+      template<template<typename... X> class Synthesizer>
+      using synthesizer_attribute = attribute<e_special_attributes, e_special_attributes::synthesizer, wrap_synthesizer<Synthesizer>>;
 
       // specialisation of attribute for functions
       template<typename Ret, typename... Args, Ret (*Function)(Args...)>
@@ -103,7 +115,7 @@ namespace neam
       template<size_t Index>
       struct attribute<e_special_attributes, e_special_attributes::value_forward, embed::embed<size_t, Index>>
       {
-        using return_type = void;
+        using return_type = void; // not accounted
         static constexpr long arity = -long(Index + 1); // minimum / not accounted
 
         template<e_forward_mode = e_forward_mode::token_value>
@@ -112,6 +124,13 @@ namespace neam
           static constexpr size_t index = Index;
         };
         static constexpr function_t<> function = function_t<>();
+      };
+      // synthesizer special case
+      template<typename SynthesizerWrapper>
+      struct attribute<e_special_attributes, e_special_attributes::value_forward, SynthesizerWrapper>
+      {
+        using return_type = void;           // not accounted
+        static constexpr long arity = 0;    // not accounted
       };
     } // namespace alphyn
   } // namespace ct
