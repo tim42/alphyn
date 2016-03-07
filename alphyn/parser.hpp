@@ -30,6 +30,7 @@
 #include "grammar.hpp"
 #include "grammar_tools.hpp"
 #include "parser_tools.hpp"
+#include "ct_parser.hpp"
 
 namespace neam
 {
@@ -51,6 +52,15 @@ namespace neam
                                 /// \code template<typename ReturnType> ReturnType on_parse_error(const char *str, size_t start_index, uts_t &stack, lexem_list<SyntaxClass> &current_token); \endcode
       };
 
+      // this way the compiler will print shorter messages (the state thing that is present in the "normal" could be HUGE)
+      // this may help to debug things when the parser fails.
+      template<typename TypeT, TypeT Type, typename Value>
+      struct simplified_stack
+      {
+        static constexpr TypeT type = Type;
+        using value = Value;
+      };
+
       /// \brief The Alphyn parser
       template<typename SyntaxClass, on_parse_error OnErrAct = on_parse_error::throw_exception>
       class parser
@@ -59,49 +69,67 @@ namespace neam
           using automaton = typename grammar_tools<SyntaxClass>::lr1_automaton;
 
         public:
+          using type_t = typename SyntaxClass::token_type::type_t;
           using automaton_list = typename automaton::as_type_list;
-          using uts_t = tuple_stack<SyntaxClass, automaton_list::size, typename SyntaxClass::token_type::type_t, typename SyntaxClass::grammar::return_type_list>;
+          using uts_t = tuple_stack<SyntaxClass, automaton_list::size, type_t, typename SyntaxClass::grammar::return_type_list>;
 
         private: // compile-time
-          /// \brief Should be done in another classy way (a way full of template and types),
-          /// But why the pain of doing a constexpr parser if I can't use it this way ?.
-          template<const char *String, size_t Index, typename ReturnType>
+          /// \brief This way, you can use this parser to construct complex \b **types** !
+          /// The result is a type, not a value
+          template<const char *String, size_t Index>
           class _ct_parse_string
           {
             private:
-              static constexpr ReturnType parse_string()
-              {
-                uts_t stack = uts_t();
-                lexem_list<SyntaxClass> ll = lexer<SyntaxClass>::get_lazy_lexer(String, Index);
-                parser_state<SyntaxClass, automaton>::rec_parse(stack, ll);
-                if (stack.size() == 1 && stack.get_top_type() == SyntaxClass::grammar::start_rule)
-                  return stack.template get<ReturnType>();
-                return ReturnType();
-              }
-              // sorry.
-              static constexpr bool can_parse_string()
-              {
-                uts_t stack = uts_t();
-                lexem_list<SyntaxClass> ll = lexer<SyntaxClass>::get_lazy_lexer(String, Index);
-                parser_state<SyntaxClass, automaton>::rec_parse(stack, ll);
-                if (stack.size() == 1 && stack.get_top_type() == SyntaxClass::grammar::start_rule)
-                  return true;
-                return false;
-              }
+              using rec_parser = ct_parser_rec<SyntaxClass, automaton, typename lexer<SyntaxClass>::template ct_lexem_list<String, Index>, ct::type_list<>>;
 
-              static_assert(can_parse_string(), "Could not parse the string :(");
+              template<typename X> using make_simplified_stack = simplified_stack<type_t, X::type, typename X::value>;
+
+              // This way, the stack is "printed" in the error trace
+              template<typename Stack>
+              struct stack_check
+              {
+                // NOTE: If you see an error here, it may be caused by the ct parser itself. It's a quite difficult thing to debug
+                // mostly if your types, when formatted correctly (replacing <> by {}) takes more than 3000 lines.
+                // So as I didn't fully tested every single cases of the ct parser (simply verified that it would gives the same results
+                // as the "normal" (value) parser
+
+                // The stack is empty, meaning that the first token has been rejected.
+                static_assert(Stack::size != 0, "the parser hasn't consumed the first token (it may be invalid or unexpected as a first token)");
+
+                // The stack has not been reduced to one single entry.
+                // Either the parser hasn't consumed the full token list (if the last (first) entry in the stack is a token (typed_lexem_list<>)
+                // The parser failed to consume the next token) or the parser has consumed the whole input but failed to reduce the stack into the
+                // initial non-terminal. (there's an error somewhere in your input, but that error didn't resulted in an invalid token or a serious
+                // enough error that would have caused the parser to not consume the whole input).
+                static_assert(Stack::size <= 1, "the parser hasn't consumed its full stack: this may be caused by a reduction error");
+
+                // Typically trigger if a previous static_assert has also triggered.
+                // If not, this mean that the parser has failed to reduce the expression to the initial non-terminal.
+                // This may either indicate a problem in your grammar (if the whole input has been consumed, all the input has been reduced to a single
+                // non-terminal but the parser can't find a way to reduce it furthermore) or in your input (you may either have consumed one token of input
+                // (in that case the stack is only a typed_lexem_list<>) or you have a valid input that is in fact valid as a subexpression not valid as a whole expression
+                // (in that case the stack is only a non-terminal).
+                static_assert(Stack::front::type != SyntaxClass::grammar::start_rule, "the parser failed to reduce the expression to the initial production rule (reduction error)");
+
+                using stack = Stack;
+              };
+              using stack = typename stack_check<typename rec_parser::stack::template direct_for_each<make_simplified_stack>>::stack;
 
             public:
-              static constexpr ReturnType result = parse_string();
+              using result = typename stack::front::value;
           };
 
         public:
-          /// \brief parse the string and set the result value in a static constexpr attribute named result
-          /// It fails the compilation if something goes wrong with an explicit message saying that the string can't be parsed.
-          /// ( parse_string(), used in a compile-time context will also fails the compilation, but the message won't be explicit)
+          /// \brief Parse the string and lay a type, this way you can use a nice and easy-to-write language to create nasty and hardcore C++ types.
+          /// This is why alphin is a compile-time parser, and it fully achieve its goal in that ct_parse_string<> thing.
+          /// If you want, you may even use a kind of C-subset to generate C++ types. It's possible.
+          /// Your grammar may need some modifications to be supported by the ct parser (and a ct grammar may not be used by a value parser),
+          /// this because the function attributes used by the standard parser may return complex types than can't be placed as template parameters
+          /// (there's only support for integers/pointers/... values but not floating points values, and no other type instance).
+          /// This parser is to be used if you want to output types, not values.
           /// \see parse_string()
-          template<typename ReturnType, const char *String, size_t Index = 0>
-          using ct_parse_string = _ct_parse_string<String, Index, ReturnType>;
+          template<const char *String, size_t Index = 0>
+          using ct_parse_string = typename _ct_parse_string<String, Index>::result;
 
           /// \brief parse the string and return the result value
           /// \see ct_parse_string
