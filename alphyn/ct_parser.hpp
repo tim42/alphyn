@@ -116,6 +116,7 @@ namespace neam
         using lexem = typename substack::template get_type<IndexEmbed::value>;
         using result = embed::embed<typename lexem::token_type::value_t, lexem::token.value>;
 
+        static_assert(!sizeof(result), "lol");
         // the result, wrapped in embed::embed<>
         using result_stack = typename BaseStack::template prepend<ct_stack_entry<typename Rule::type_t, Rule::name, result, ct_state>>;
       };
@@ -222,7 +223,7 @@ namespace neam
         using token_type = typename SyntaxClass::token_type;
 
         // Lookup productions and match them with the Stack
-        template<typename List, typename Result = void, bool IsAlreadyDone = false>
+        template<typename List, typename Result = void, bool IsAlreadyDone = false, typename = void>
         struct production_rule_matcher
         {
           using current = typename List::front;
@@ -233,22 +234,43 @@ namespace neam
           using next = production_rule_matcher<remaining, matcher_result, current_matches>;
           constexpr static bool has_matched = next::has_matched;
           using result = typename next::result;
+          using dest_state = typename next::dest_state;
         };
 
         // We are at the end
-        template<typename Result, bool IsAlreadyDone>
-        struct production_rule_matcher<ct::type_list<>, Result, IsAlreadyDone>
+        template<bool IsAlreadyDone, typename X>
+        struct production_rule_matcher<ct::type_list<>, void, IsAlreadyDone, X> // end without matches
         {
           static constexpr bool has_matched = IsAlreadyDone;
-          using dest_state = ct_parser_rec;
-          using result = Result;
+          using dest_state = void;
+          using result = void;
         };
-        // early exit of the loop
-        template<typename List, typename Result>
-        struct production_rule_matcher<List, Result, true>
+        template<typename Result, typename X>
+        struct production_rule_matcher<ct::type_list<>, Result, true, X> // lucky end
         {
           static constexpr bool has_matched = true;
-          using dest_state = ct_parser_rec;
+          using dest_state = typename Result::dest_state;
+          using result = Result;
+        };
+        template<typename Result, typename X>
+        struct production_rule_matcher<ct::type_list<>, Result, false, X> // bad end
+        {
+          static constexpr bool has_matched = false;
+          using dest_state = void;
+          using result = void;
+        };
+        template<typename X>
+        struct production_rule_matcher<ct::type_list<>, void, false, X> // empty start
+        {
+          static constexpr bool has_matched = false;
+          using dest_state = void;
+          using result = void;
+        };
+        template<typename List, typename Result, typename X>
+        struct production_rule_matcher<List, Result, true, X> // early exit
+        {
+          static constexpr bool has_matched = true;
+          using dest_state = typename Result::dest_state;
           using result = Result;
         };
 
@@ -273,7 +295,7 @@ namespace neam
           using rec_tll = typename std::conditional<!IsPost, typename CTLL::next, CTLL>::type;
           using rec_stack = typename std::conditional<!IsPost, typename CSTack::template prepend<ct_stack_entry<type_t, CTLL::token.type, CTLL, ct_parser_rec>>, CSTack>::type;
 
-          using rec_res = recurse_switcher<ToMatch == current::name, ct_parser_rec<SyntaxClass, typename current::state, rec_tll, rec_stack>>;
+          using rec_res = recurse_switcher<(ToMatch == current::name), ct_parser_rec<SyntaxClass, typename current::state, rec_tll, rec_stack>>;
 
           // results
           using stack = typename rec_res::res::stack;
