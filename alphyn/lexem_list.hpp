@@ -89,9 +89,8 @@ namespace neam
           using syntax_class_type = SyntaxClass;
 
         private: // helpers
-          typed_lexem_list() = delete;
-
           static constexpr long end_index = lexer_type::get_end_index(Str, InitialIndex);
+
         public:
           static constexpr token_type token = lexer_type::get_token(Str, InitialIndex);
           static constexpr bool is_last = ((end_index == -1) || (Str[InitialIndex] == '\0'));
@@ -108,9 +107,9 @@ namespace neam
           }
 
         public:
-          using next = typed_lexem_list<SyntaxClass, Str, end_index, check_token<token.start_index>()>;
+          using next = typed_lexem_list<SyntaxClass, Str, (is_last ? InitialIndex : end_index), check_token<token.start_index>()>;
       };
-
+/*
       template<typename SyntaxClass, const char *Str, long InitialIndex>
       class typed_lexem_list<SyntaxClass, Str, InitialIndex, true>
       {
@@ -123,6 +122,7 @@ namespace neam
           typed_lexem_list() = delete;
 
           static constexpr bool is_last = true;
+          using next = typed_lexem_list;
       };
 
       template<typename SyntaxClass, const char *Str, bool Empty>
@@ -137,7 +137,8 @@ namespace neam
           typed_lexem_list() = delete;
 
           static constexpr bool is_last = true;
-      };
+          using next = typed_lexem_list;
+      };*/
 
     } // namespace alphyn
   } // namespace ct

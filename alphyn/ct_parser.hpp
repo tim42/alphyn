@@ -28,6 +28,7 @@
 
 #include <tools/ct_list.hpp>
 #include <tools/embed.hpp>
+#include <tools/macro.hpp>
 #include "grammar_attributes.hpp"
 
 // this file contains almost the same thing than parser_tools.hpp (maybe I should rename parser_tools to cr_parser)
@@ -39,6 +40,13 @@ namespace neam
   {
     namespace alphyn
     {
+      template<typename... X>
+      struct debug_assert
+      {
+        static_assert(!sizeof...(X), "[debug assertion]");
+        using type = void;
+      };
+
       /// \brief An entry in the stack (a stack is simply a ct::type_list<>)
       template<typename TypeT, TypeT Type, typename ValueT, typename CTState>
       struct ct_stack_entry
@@ -56,7 +64,7 @@ namespace neam
       struct ct_apply_attribute
       {
         using substack = typename Stack::template sublist<0, StackSzDiff>;
-        using ct_state = typename substack::template get_type<substack::size - 1>;
+        using ct_state = typename substack::template get_type<substack::size - 1>::ct_state;
 
         // extract the value for some wrapper types (tokens & embeds)
         template<typename Type>
@@ -67,7 +75,7 @@ namespace neam
         struct get_value<typed_lexem_list<SyntaxClass, Str, InitialIndex, Empty>>
         {
           using tll = typed_lexem_list<SyntaxClass, Str, InitialIndex, Empty>;
-          static constexpr typename tll::token_type::value_t value = tll::token.value;
+          static constexpr typename tll::token_type value = tll::token;
         };
         // call the function
         template<typename... Types>
@@ -80,7 +88,7 @@ namespace neam
         using result = typename ct::extract_types<call_function, substack>::type::return_type;
 
         // the result
-        using result_stack = typename BaseStack::template preprend<ct_stack_entry<typename Rule::type_t, Rule::name, result, ct_state>>;
+        using result_stack = typename BaseStack::template prepend<ct_stack_entry<typename Rule::type_t, Rule::rule_name, result, ct_state>>;
       };
 
       template
@@ -95,10 +103,10 @@ namespace neam
       struct ct_apply_attribute<Rule, Stack, Attribute<e_special_attributes, e_special_attributes::forward, IndexEmbed>, StackSzDiff, BaseStack>
       {
         using substack = typename Stack::template sublist<0, StackSzDiff>;
-        using ct_state = typename substack::template get_type<substack::size - 1>;
+        using ct_state = typename substack::template get_type<substack::size - 1>::ct_state;
 
         // the result
-        using result_stack = typename BaseStack::template prepend<typename substack::template get_type<IndexEmbed::value>::template change_type_and_state<Rule::name, ct_state>>;
+        using result_stack = typename BaseStack::template prepend<typename substack::template get_type<IndexEmbed::value>::template change_type_and_state<Rule::rule_name, ct_state>>;
       };
       template
       <
@@ -112,13 +120,13 @@ namespace neam
       struct ct_apply_attribute<Rule, Stack, Attribute<e_special_attributes, e_special_attributes::value_forward, IndexEmbed>, StackSzDiff, BaseStack>
       {
         using substack = typename Stack::template sublist<0, StackSzDiff>;
-        using ct_state = typename substack::template get_type<substack::size - 1>;
-        using lexem = typename substack::template get_type<IndexEmbed::value>;
+        using ct_state = typename substack::template get_type<substack::size - 1>::ct_state;
+        using lexem = typename substack::template get_type<IndexEmbed::value>::value;
         using result = embed::embed<typename lexem::token_type::value_t, lexem::token.value>;
 
-        static_assert(!sizeof(result), "lol");
+//         static_assert(!sizeof(result), "lol");
         // the result, wrapped in embed::embed<>
-        using result_stack = typename BaseStack::template prepend<ct_stack_entry<typename Rule::type_t, Rule::name, result, ct_state>>;
+        using result_stack = typename BaseStack::template prepend<ct_stack_entry<typename Rule::type_t, Rule::rule_name, result, ct_state>>;
       };
       template
       <
@@ -132,13 +140,13 @@ namespace neam
       struct ct_apply_attribute<Rule, Stack, Attribute<e_special_attributes, e_special_attributes::synthesizer, SynthesizerWrapper>, StackSzDiff, BaseStack>
       {
         using substack = typename Stack::template sublist<0, StackSzDiff>;
-        using ct_state = typename substack::template get_type<substack::size - 1>;
+        using ct_state = typename substack::template get_type<substack::size - 1>::ct_state;
         // unwrap the synthesizer
         template<typename... X> using synthesizer = typename SynthesizerWrapper::template synthesizer<X...>;
         using result = typename ct::extract_types<synthesizer, substack>::type::type;
 
         // the result
-        using result_stack = typename BaseStack::template prepend<ct_stack_entry<typename Rule::type_t, Rule::name, result, ct_state>>;
+        using result_stack = typename BaseStack::template prepend<ct_stack_entry<typename Rule::type_t, Rule::rule_name, result, ct_state>>;
       };
 
       /// \brief A matcher for a stack and a production rule
@@ -149,14 +157,15 @@ namespace neam
         using lookahead_list = typename Rule::follow_set;
         using type_t = typename LookAheadLL::token_type::type_t;
 
-        template<typename CStack, typename PRL, bool IsLookAheadOK, bool GoneWrong = false>
+        template<typename CStack, typename PRL, bool GoneWrong, bool IsLookAheadOK>
         struct ctsprm_iter // what actually check
         {
           using current_stack = typename CStack::front;
-          using current_item = typename PRL::front;
+          using current_item = typename PRL::back;
 
           constexpr static bool current_is_ok = (current_stack::type == current_item::value);
-          using res = ctsprm_iter<typename CStack::pop_front, typename PRL::popfront, current_is_ok>;
+          using res = ctsprm_iter<typename CStack::pop_front, typename PRL::pop_back, !current_is_ok, IsLookAheadOK>;
+
           // results
           constexpr static bool is_ok = res::is_ok;
           using new_stack = typename res::new_stack;
@@ -165,42 +174,38 @@ namespace neam
         template<typename CStack>
         struct ctsprm_iter<CStack, ct::type_list<>, false, true> // The end (we call the function / forward / synthesize / ...)
         {
-          using base_stack = typename CStack::pop_front;
-          using dest_state = typename CStack::front::ct_state;
+          using base_stack = CStack;
+          using dest_state = typename Stack::template get_type<prod_rule_list::size - 1>::ct_state;
           constexpr static size_t stack_diff = (Stack::size - base_stack::size);
           constexpr static bool is_ok = true;
+
           using new_stack = typename ct_apply_attribute<Rule, Stack, typename Rule::attribute, stack_diff, base_stack>::result_stack;
         };
-        template<typename CStack, typename PRL, bool IsLookAheadOK>
-        struct ctsprm_iter<CStack, PRL, true, IsLookAheadOK> // Doesn't match (early exit / could be the end)
+        struct bad_end // when the lookahead is not in the list, when that does not matches, when the stack is shorter than the prl, ...
         {
           constexpr static bool is_ok = false;
           using dest_state = void;
           using new_stack = Stack;
         };
-        template<typename CStack, typename PRL>
-        struct ctsprm_iter<CStack, PRL, true, false> // Doesn't match (early exit / could be the end)
+        template<typename CStack, typename PRL> struct ctsprm_iter<CStack, PRL, true, true> : public bad_end {}; // Doesn't match (early exit / could be the end)
+        template<typename CStack, typename PRL> struct ctsprm_iter<CStack, PRL, false, false> : public bad_end {}; // Doesn't match (early exit / could be the end)
+        template<typename PRL> struct ctsprm_iter<ct::type_list<>, PRL, false, false> : public bad_end {}; // The end of the stack
+        template<typename PRL> struct ctsprm_iter<ct::type_list<>, PRL, true, false> : public bad_end {}; // The end of the stack
+        template<typename PRLItem1, typename... PRLNext>
+        struct ctsprm_iter<ct::type_list<>, ct::type_list<PRLItem1, PRLNext...>, false, true>
+          : public bad_end {}; // The end of the stack (also make sure the prl is not empty too)
+        template<typename PRL> struct ctsprm_iter<ct::type_list<>, PRL, true, true> : public bad_end {}; // The end of the stack
+
+        template<typename LAList, typename LA>
+        struct lookahead_matcher : public LAList::template is_in_list< embed::embed<type_t, LA::token.type> > {};
+
+        template<typename LA>
+        struct lookahead_matcher<ct::type_list<>, LA>
         {
-          constexpr static bool is_ok = false;
-          using dest_state = void;
-          using new_stack = Stack;
-        };
-        template<typename CStack, typename PRL, bool GoneWrong>
-        struct ctsprm_iter<CStack, PRL, GoneWrong, false> // Lookahead doesn't match (early exit)
-        {
-          constexpr static bool is_ok = false;
-          using dest_state = void;
-          using new_stack = Stack;
-        };
-        template<typename PRL, bool GoneWrong, bool IsLookAheadOK>
-        struct ctsprm_iter<ct::type_list<>, PRL, GoneWrong, IsLookAheadOK> // The end of the stack
-        {
-          constexpr static bool is_ok = false;
-          using dest_state = void;
-          using new_stack = Stack;
+          static constexpr bool value = LA::is_last;
         };
 
-        using res = ctsprm_iter<Stack, prod_rule_list, lookahead_list::template is_in_list<embed::embed<type_t, LookAheadLL::token.type>>::value>;
+        using res = ctsprm_iter<Stack, prod_rule_list, false, lookahead_matcher<lookahead_list, LookAheadLL>::value>;
 
         // the results
         constexpr static bool value = res::is_ok;
@@ -230,8 +235,7 @@ namespace neam
           using remaining = typename List::pop_front;
 
           using matcher_result = ct_stack_production_rule_matcher<Stack, current, TLL>;
-          constexpr static bool current_matches = matcher_result::value;
-          using next = production_rule_matcher<remaining, matcher_result, current_matches>;
+          using next = production_rule_matcher<remaining, matcher_result, matcher_result::value>;
           constexpr static bool has_matched = next::has_matched;
           using result = typename next::result;
           using dest_state = typename next::dest_state;
@@ -348,7 +352,7 @@ namespace neam
         {
           // results:
           using dest_state = typename PRMResult::dest_state;
-          using stack = typename PRMResult::new_stack;
+          using stack = typename PRMResult::result::new_stack;
           using tll = TLL;
         };
 
