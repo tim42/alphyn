@@ -12,8 +12,10 @@
 /// \brief a simple mathematical evaluator
 struct math_eval
 {
+  using return_type = long;
+
   // token relative things (type and invalid)
-  using token_type = neam::ct::alphyn::token<float>;
+  using token_type = neam::ct::alphyn::token<return_type>;
   using type_t = typename token_type::type_t;
 
   /// \brief possible "types" for a token
@@ -22,21 +24,21 @@ struct math_eval
     invalid = neam::ct::alphyn::invalid_token_type,
 
     // tokens
-    tok_end,
-    tok_number,
-    tok_add,
-    tok_sub,
-    tok_mul,
-    tok_div,
-    tok_par_open,
-    tok_par_close,
+    tok_end         = 0,
+    tok_number      = 1,
+    tok_add         = 2,
+    tok_sub         = 3,
+    tok_mul         = 4,
+    tok_div         = 5,
+    tok_par_open    = 6,
+    tok_par_close   = 7,
 
     // non-terminals
-    start,
-    expr,
-    sum,
-    prod,
-    val,
+    start   = 100,
+    expr    = 101,
+    sum     = 102,
+    prod    = 103,
+    val     = 104,
   };
 
   static std::string get_name_for_token_type(type_t t)
@@ -75,7 +77,7 @@ struct math_eval
       for (size_t j = i + 1; j < end; ++j)
         value += float(s[j] - '0') / float((j - i) * 10);
     }
-    return token_type {e_token_type::tok_number, value, s, index, end};
+    return token_type {e_token_type::tok_number, return_type(value), s, index, end};
   }
 
   // regular expressions
@@ -104,17 +106,17 @@ struct math_eval
   // THE PARSER THINGS //
 
   /// \brief Shortcut for production_rule
-  template<typename Attribute, token_type::type_t... TokensOrRules>
+  template<typename Attribute, type_t... TokensOrRules>
   using production_rule = neam::ct::alphyn::production_rule<math_eval, Attribute, TokensOrRules...>;
   /// \brief Shortcut for production_rule_set
-  template<token_type::type_t Name, typename... Rules>
+  template<type_t Name, typename... Rules>
   using production_rule_set = neam::ct::alphyn::production_rule_set<math_eval, Name, Rules...>;
 
-  /// \brief Because of the value_fallthrough_attribute we work on float directly
-  static constexpr float attr_add(float n1, const token_type &, float n2) { return n1 + n2; }
-  static constexpr float attr_sub(float n1, const token_type &, float n2) { return n1 - n2; }
-  static constexpr float attr_mul(float n1, const token_type &, float n2) { return n1 * n2; }
-  static constexpr float attr_div(float n1, const token_type &, float n2) { return n1 / n2; }
+  /// \brief Because of the value_fallthrough_attribute we work on return_type directly
+  static constexpr return_type attr_add(return_type n1, const token_type &, return_type n2) { return n1 + n2; }
+  static constexpr return_type attr_sub(return_type n1, const token_type &, return_type n2) { return n1 - n2; }
+  static constexpr return_type attr_mul(return_type n1, const token_type &, return_type n2) { return n1 * n2; }
+  static constexpr return_type attr_div(return_type n1, const token_type &, return_type n2) { return n1 / n2; }
 
   /// \brief The parser grammar
   using grammar = neam::ct::alphyn::grammar<math_eval, start,
@@ -152,22 +154,24 @@ struct math_eval
   }
 };
 
-// a test string:
-constexpr neam::string_t test_str = "(10 + 5) * 2";
-// create a compile-time lexem list
-// auto initial_token = math_eval::lexer::ct_lexem_list<test_str>::token;
 
+// a test string:
+constexpr neam::string_t test_str = "2.0 * 4.0 + 4 / 2 + (4 * 2)";
 
 int main(int /*argc*/, char **/*argv*/)
 {
 //   std::cout << "automaton: \n";
 //   neam::ct::alphyn::debug_printer<math_eval>::print_graph();
 
-  // the proof that alphyn is compile-time:
-  static_assert(math_eval::parser::parse_string<float>("2.5 * 4.0 + 4 / 2 + 4 * 2") == 20, "Well... The parser / grammar / string / ... is not OK");
-  static_assert(math_eval::parser::ct_parse_string<float, test_str>::result == 30, "Well... The parser / grammar / string / ... is not OK");
+  std::cout << "> " << math_eval::parser::ct_parse_string<test_str>::value << std::endl;
 
-  std::cout << "res: " << math_eval::parser::parse_string<float>("(1+1) * 2.5 + 5 / 2 * (3 - 0.5)") << '\n';
+  // the proof that alphyn is compile-time:
+  static_assert(math_eval::parser::parse_string<math_eval::return_type>("2.0 * 4.0 + 4 / 2 + (4 * 2)") == 18, "Well... The parser / grammar / string / ... is not OK");
+
+  // another proof, but this time the result is a type (a neam::embed::embed<long, ResultValue> and the value can be accessed via ::value)
+  static_assert(math_eval::parser::ct_parse_string<test_str>::value == 18, "Well... The parser / grammar / string / ... is not OK");
+
+  std::cout << "res: " << math_eval::parser::parse_string<math_eval::return_type>("(1+1) * 2.5 + 5 / 2 * (3 - 0.5)") << '\n';
 
 //   return 0;
 
@@ -175,10 +179,10 @@ int main(int /*argc*/, char **/*argv*/)
   neam::cr::chrono chr;
   std::string expr = "1";
   // it generates a string with one-character tokens, some separated by white-space tokens
-  for (size_t i = 0; i < 130 * 1000 * 1000; ++i) expr += " + 0 * 1";
+  for (size_t i = 0; i < 120 * 1000 * 1000; ++i) expr += " + (0 * 1)";
   double gentime = chr.delta();
   std::cout << "generated an expression of " << (expr.size() / 1000 / 1000) << "MToken [" << gentime << "s]" << std::endl;
-  std::cout << "TEST1: " << math_eval::parser::parse_string<float>(expr.c_str()) << '\n';
+  std::cout << "TEST1: " << math_eval::parser::parse_string<math_eval::return_type>(expr.c_str()) << '\n';
   double parsetime = chr.get_accumulated_time();
   std::cout << "dtime: " << parsetime << "s [" << (float(expr.size() / 1000 / 1000) / parsetime) << "MToken/s]" << std::endl;
   std::cout << "  -> " << "parser is " << (parsetime / gentime) << "x slower than the generation"<< std::endl;
