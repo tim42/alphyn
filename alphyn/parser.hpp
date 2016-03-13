@@ -53,7 +53,7 @@ namespace neam
       };
 
       // this way the compiler will print shorter messages (the state thing that is present in the "normal" could be HUGE)
-      // this may help to debug things when the parser fails.
+      // this may help to debug things when the ct parser fails.
       template<typename TypeT, TypeT Type, typename Value>
       struct simplified_stack
       {
@@ -101,7 +101,7 @@ namespace neam
                 // The parser failed to consume the next token) or the parser has consumed the whole input but failed to reduce the stack into the
                 // initial non-terminal. (there's an error somewhere in your input, but that error didn't resulted in an invalid token or a serious
                 // enough error that would have caused the parser to not consume the whole input).
-                static_assert(Stack::size <= 1, "the parser hasn't consumed its full stack: this may be caused by a reduction error");
+                static_assert(Stack::size == 1, "the parser hasn't consumed its full stack: this may be caused by a reduction error");
 
                 // Typically trigger if a previous static_assert has also triggered.
                 // If not, this mean that the parser has failed to reduce the expression to the initial non-terminal.
@@ -109,7 +109,7 @@ namespace neam
                 // non-terminal but the parser can't find a way to reduce it furthermore) or in your input (you may either have consumed one token of input
                 // (in that case the stack is only a typed_lexem_list<>) or you have a valid input that is in fact valid as a subexpression not valid as a whole expression
                 // (in that case the stack is only a non-terminal).
-                static_assert(Stack::front::type != SyntaxClass::grammar::start_rule, "the parser failed to reduce the expression to the initial production rule (reduction error)");
+                static_assert(Stack::front::type == SyntaxClass::grammar::start_rule, "the parser failed to reduce the expression to the initial production rule (reduction error)");
 
                 using stack = Stack;
               };

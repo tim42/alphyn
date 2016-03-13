@@ -59,14 +59,15 @@ namespace neam
         using change_type_and_state = ct_stack_entry<TypeT, NewType, ValueT, NewCTState>;
       };
 
-      /// \p BaseStack is the stack without any element related to the attribute
+      // Perform the reduction operation (accounting the attribute)
       template<typename Rule, typename Stack, typename Attribute, size_t StackSzDiff, typename BaseStack>
       struct ct_apply_attribute
       {
         using substack = typename Stack::template sublist<0, StackSzDiff>;
         using ct_state = typename substack::template get_type<substack::size - 1>::ct_state;
 
-        // extract the value for some wrapper types (tokens & embeds)
+        // extract the value for some wrapper types (tokens & embeds):
+        // this help keeping some compatibility with the "'value' parser"
         template<typename Type>
         struct get_value { static constexpr Type value = Type(); };
         template<typename Type, Type Value>
@@ -106,7 +107,7 @@ namespace neam
         using ct_state = typename substack::template get_type<substack::size - 1>::ct_state;
 
         // the result
-        using result_stack = typename BaseStack::template prepend<typename substack::template get_type<IndexEmbed::value>::template change_type_and_state<Rule::rule_name, ct_state>>;
+        using result_stack = typename BaseStack::template prepend<typename substack::template get_type<substack::size - 1 - IndexEmbed::value>::template change_type_and_state<Rule::rule_name, ct_state>>;
       };
       template
       <
@@ -121,10 +122,9 @@ namespace neam
       {
         using substack = typename Stack::template sublist<0, StackSzDiff>;
         using ct_state = typename substack::template get_type<substack::size - 1>::ct_state;
-        using lexem = typename substack::template get_type<IndexEmbed::value>::value;
+        using lexem = typename substack::template get_type<substack::size - 1 - IndexEmbed::value>::value;
         using result = embed::embed<typename lexem::token_type::value_t, lexem::token.value>;
 
-//         static_assert(!sizeof(result), "lol");
         // the result, wrapped in embed::embed<>
         using result_stack = typename BaseStack::template prepend<ct_stack_entry<typename Rule::type_t, Rule::rule_name, result, ct_state>>;
       };
@@ -176,7 +176,7 @@ namespace neam
         {
           using base_stack = CStack;
           using dest_state = typename Stack::template get_type<prod_rule_list::size - 1>::ct_state;
-          constexpr static size_t stack_diff = (Stack::size - base_stack::size);
+          constexpr static size_t stack_diff = prod_rule_list::size;
           constexpr static bool is_ok = true;
 
           using new_stack = typename ct_apply_attribute<Rule, Stack, typename Rule::attribute, stack_diff, base_stack>::result_stack;
