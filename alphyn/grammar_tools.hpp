@@ -400,9 +400,7 @@ namespace neam
           using type = ct::type_list<>;
         };
         template<typename PRW>
-        struct _nonterminal_switch<PRW, false>
-        {
-          using type = typename _nonterminal_switch_2
+        struct _nonterminal_switch<PRW, false> : public _nonterminal_switch_2
           <
             PRW,
             _is_non_terminal
@@ -410,17 +408,16 @@ namespace neam
               SyntaxClass,
               PRW::as_type_list::template get_type<PRW::position>::value
             >::value
-          >::type;
+          >
+        {
         };
         template<typename PRW>
-        struct apply_nonterminal_switch
-        {
-          constexpr static bool is_past_the_end = (PRW::position > (PRW::as_type_list::size - 1));
-          using type = typename _nonterminal_switch
+        struct apply_nonterminal_switch : public _nonterminal_switch
           <
             PRW,
-            is_past_the_end
-          >::type;
+            (PRW::position > (PRW::as_type_list::size - 1))
+          >
+        {
         };
 
         // is in stack filter
