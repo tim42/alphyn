@@ -109,37 +109,6 @@ namespace neam
         public:
           using next = typed_lexem_list<SyntaxClass, Str, (is_last ? InitialIndex : end_index), check_token<token.start_index>()>;
       };
-/*
-      template<typename SyntaxClass, const char *Str, long InitialIndex>
-      class typed_lexem_list<SyntaxClass, Str, InitialIndex, true>
-      {
-        public: // types
-          using token_type = typename SyntaxClass::token_type;
-          using lexer_type = typename SyntaxClass::lexer;
-          using syntax_class_type = SyntaxClass;
-
-        private: // helpers
-          typed_lexem_list() = delete;
-
-          static constexpr bool is_last = true;
-          using next = typed_lexem_list;
-      };
-
-      template<typename SyntaxClass, const char *Str, bool Empty>
-      class typed_lexem_list<SyntaxClass, Str, -1, Empty>
-      {
-        public: // types
-          using token_type = typename SyntaxClass::token_type;
-          using lexer_type = typename SyntaxClass::lexer;
-          using syntax_class_type = SyntaxClass;
-
-        private: // helpers
-          typed_lexem_list() = delete;
-
-          static constexpr bool is_last = true;
-          using next = typed_lexem_list;
-      };*/
-
     } // namespace alphyn
   } // namespace ct
 } // namespace neam
