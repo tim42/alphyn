@@ -136,8 +136,8 @@ namespace neam
         using substack = typename Stack::template sublist<0, StackSzDiff>;
         using ct_state = typename substack::back::ct_state;
         // unwrap the synthesizer
-        template<typename... X> using synthesizer = typename SynthesizerWrapper::template synthesizer<X...>;
-        using result = typename ct::extract_types<synthesizer, substack>::type::type;
+        template<typename... X> using synthesizer = typename SynthesizerWrapper::template synthesizer<typename X::value...>;
+        using result = typename ct::extract_types<synthesizer, typename substack::template reverse<true>>::type::type;
 
         // the result
         using result_stack = typename BaseStack::template prepend<ct_stack_entry<typename Rule::type_t, Rule::rule_name, result, ct_state>>;

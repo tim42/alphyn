@@ -127,7 +127,7 @@ namespace neam
       };
       // synthesizer special case
       template<typename SynthesizerWrapper>
-      struct attribute<e_special_attributes, e_special_attributes::value_forward, SynthesizerWrapper>
+      struct attribute<e_special_attributes, e_special_attributes::synthesizer, SynthesizerWrapper>
       {
         using return_type = void;           // not accounted
         static constexpr long arity = 0;    // not accounted
