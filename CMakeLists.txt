@@ -74,6 +74,7 @@ endif()
 if (${CMAKE_PROJECT_NAME} STREQUAL ${PROJECT_NAME})
   add_subdirectory(samples/test)
   add_subdirectory(samples/tuple-builder)
+  add_subdirectory(samples/bnf-meta-parser)
 endif()
 
 # build the tools
