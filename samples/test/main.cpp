@@ -163,7 +163,7 @@ int main(int /*argc*/, char **/*argv*/)
 //   std::cout << "automaton: \n";
 //   neam::ct::alphyn::debug_printer<math_eval>::print_graph();
 
-  // the proof that alphyn is compile-time:
+  // the proof that alphyn can be compile-time:
   static_assert(math_eval::parser::parse_string<math_eval::return_type>("2.0 * 4.0 + 4 / 2 + (4 * 2)") == 18, "Well... The parser / grammar / string / ... is not OK");
 
   // another proof, but this time the result is a type (a neam::embed::embed<long, ResultValue> and the value can be accessed via ::value)
