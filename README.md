@@ -9,7 +9,7 @@ Now it's possible with `alphyn`.
 ### features
 - fast LR(1) parser than can both run at compile-time and runtime
   - fast: the compiler is able to optimize directly the parser. There's no dynamic allocation.
-- BNF + attribute grammar
+- BNF-like + attribute grammar
 - two compile-time modes:
   - *standard* mode, alphyn will work like any other parser work (it will return a value -- can be an ASLR if you want)
   - *"meta"* mode, in which the parser will transform the input string into a **type**. In this mode, attributes may even be template classes.
