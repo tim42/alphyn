@@ -9,6 +9,10 @@
 
 [here](parser.md)
 
+## if you're lazy and simply want something like BNF
+
+[here](bnf.md)
+
 ## disclaimer
 
 ```

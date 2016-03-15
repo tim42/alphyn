@@ -10,10 +10,11 @@ Now it's possible with `alphyn`.
 - fast LR(1) parser than can both run at compile-time and runtime
   - fast: the compiler is able to optimize directly the parser. There's no dynamic allocation.
 - BNF-like + attribute grammar
+  - There is a BNF meta-parser that generate a lexer+parser from a string containing a BNF grammar (see the doc)
 - two compile-time modes:
   - *standard* mode, alphyn will work like any other parser work (it will return a value -- can be an ASLR if you want)
   - *"meta"* mode, in which the parser will transform the input string into a **type**. In this mode, attributes may even be template classes.
-- a super-fast and flexible lexer
+- a fast and flexible lexer
 
 ### documentation
 There's some documentation [here](documentation/doc.md).
