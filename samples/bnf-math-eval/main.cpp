@@ -79,10 +79,14 @@ struct math_eval_bnf
 constexpr neam::string_t math_eval_bnf::bnf_grammar;
 
 // get the parser, but change its action when an error is found:
-using fp_math_evaluator = neam::ct::alphyn::parser<neam::ct::alphyn::bnf::generate_parser<math_eval_bnf>, neam::ct::alphyn::on_parse_error::print_message>;
+using fp_math_class = neam::ct::alphyn::bnf::generate_parser<math_eval_bnf>;
+using fp_math_evaluator = neam::ct::alphyn::parser<fp_math_class, neam::ct::alphyn::on_parse_error::print_message>;
 
 int main(int /*argc*/, char **/*argv*/)
 {
+  // std::cout << "automaton: \n";
+  // neam::ct::alphyn::debug_printer<fp_math_class>::print_graph();
+
   // uncomment the line below to see what nice c++ types are.
   // std::cout << "generated parser: " << neam::demangle<tuple_builder_parser>() << std::endl;
   // std::cout << "generated automaton: " << neam::demangle<neam::ct::alphyn::grammar_tools<tuple_builder_parser>::lr1_automaton>() << std::endl;
