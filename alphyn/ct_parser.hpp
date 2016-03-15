@@ -85,7 +85,7 @@ namespace neam
           };
 
           // the default is to have Attribute as a function
-          using result = typename ct::extract_types<call_function, typename substack::template reverse<true> >::type::return_type;
+          using result = typename ct::extract_types<call_function, typename substack::reverse>::type::return_type;
 
           // the result
           using result_stack = typename BaseStack::template prepend<ct_stack_entry<typename Rule::type_t, Rule::rule_name, result, ct_state>>;
@@ -143,7 +143,7 @@ namespace neam
           using ct_state = typename substack::back::ct_state;
           // unwrap the synthesizer
           template<typename... X> using synthesizer = typename SynthesizerWrapper::template synthesizer<typename X::value...>;
-          using result = typename ct::extract_types<synthesizer, typename substack::template reverse<true>>::type::type;
+          using result = typename ct::extract_types<synthesizer, typename substack::reverse>::type::type;
 
           // the result
           using result_stack = typename BaseStack::template prepend<ct_stack_entry<typename Rule::type_t, Rule::rule_name, result, ct_state>>;
