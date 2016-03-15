@@ -9,7 +9,7 @@
 
 #include <bnf.hpp>
 
-// attributes of the mathematical evaluator
+// a mathematical expression evaluator
 struct math_eval_bnf
 {
   using return_type = float;
@@ -59,7 +59,7 @@ struct math_eval_bnf
   >;
 
   // the bnf grammar of the mathematical evaluator
-  static constexpr neam::string_t bnf_syntax = R"(
+  static constexpr neam::string_t bnf_grammar = R"(
     start ::= sum regexp:'$'              [forward:0];
 
     sum   ::= prod                        [forward:0]
@@ -74,13 +74,16 @@ struct math_eval_bnf
             | '(' sum ')'                 [forward:1];
   )";
 };
+// I have to define the bnf_syntax here 'cause I plan to use the on_parse_error::print_message
+// error handler and it needs a reference to the string.
+constexpr neam::string_t math_eval_bnf::bnf_grammar;
 
-using fp_math_evaluator = neam::ct::alphyn::bnf::generate_parser<math_eval_bnf>::parser;
+// get the parser, but change its action when an error is found:
+using fp_math_evaluator = neam::ct::alphyn::parser<neam::ct::alphyn::bnf::generate_parser<math_eval_bnf>, neam::ct::alphyn::on_parse_error::print_message>;
 
 int main(int /*argc*/, char **/*argv*/)
 {
   // uncomment the line below to see what nice c++ types are.
-  // the second one can be really really huge (some megabytes)
   // std::cout << "generated parser: " << neam::demangle<tuple_builder_parser>() << std::endl;
   // std::cout << "generated automaton: " << neam::demangle<neam::ct::alphyn::grammar_tools<tuple_builder_parser>::lr1_automaton>() << std::endl;
 
@@ -94,7 +97,7 @@ int main(int /*argc*/, char **/*argv*/)
     }
     catch (std::exception &e)
     {
-      std::cerr << "error: " << e.what() << std::endl;
+//       std::cerr << "error: " << e.what() << std::endl;
     }
     std::cout << "math-eval > " << std::flush;
   }

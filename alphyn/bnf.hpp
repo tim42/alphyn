@@ -168,6 +168,7 @@ namespace neam
               static constexpr bool is_terminal = true;
               static constexpr bool is_regexp = true;
 
+              static constexpr const char *orig_str = TokTerminal::token.s;
               static constexpr size_t index = TokTerminal::token.start_index + 1;
               static constexpr size_t end_index = TokTerminal::token.end_index - 1;
 
@@ -194,6 +195,7 @@ namespace neam
               static constexpr bool is_terminal = true;
               static constexpr bool is_regexp = false;
 
+              static constexpr const char *orig_str = TokTerminal::token.s;
               static constexpr size_t index = TokTerminal::token.start_index + 1;
               static constexpr size_t end_index = TokTerminal::token.end_index - 1;
 
@@ -270,6 +272,8 @@ namespace neam
           {
             struct type
             {
+              static constexpr bool is_terminal = false;
+              static constexpr const char *orig_str = TokName::token.s;
               static constexpr size_t index = TokName::token.start_index;
               static constexpr size_t end_index = TokName::token.end_index;
 
@@ -386,7 +390,7 @@ namespace neam
             using regexps_su = typename regexps_terms::template direct_for_each<make_regexp_su>;
             using strings_su = typename strings_terms::template direct_for_each<make_string_su>;
             using letters_su = typename letters_terms::template direct_for_each<make_letter_su>;
-            using syntactic_unit_list = typename letters_su::template append_list<strings_su>::template append_list<regexps_su>::make_unique;
+            using syntactic_unit_list = typename letters_su::template prepend_list<strings_su>::template prepend_list<regexps_su>::make_unique;
 
             static constexpr size_t base_non_terminal_index = global_list::size + 1000;
 
@@ -436,13 +440,47 @@ namespace neam
               using grammar = typename ct::extract_types<pre_grammar, typename Syntax::template for_each<prs_maker>>::type;
             };
 
+            // for get_name_for_token_type()
+            template<typename... X>
+            struct get_string_for_type_t
+            {
+              static std::string find(type_t t)
+              {
+                const char *ret = nullptr;
+                size_t end_index = 0;
+                NEAM_EXECUTE_PACK(
+                  (ret == nullptr) && (t == get_term_id<X>::id) && (ret = X::orig_str + X::index) && (end_index = X::stored_string_size)
+                );
+                if (!ret)
+                  return std::string();
+                return std::string(ret).substr(0, end_index);
+              }
+            };
+
             // the output grammar
             struct type
             {
               using token_type = ::neam::ct::alphyn::bnf::token_type;
               using type_t = typename token_type::type_t;
 
-              static const char *get_name_for_token_type(type_t) { return "<[pouet:todo]>"; /* TODO */ }
+              // This method is present, but it is not really a problem if it is "slow"
+              // It is only called on error / when debugging.
+              static std::string get_name_for_token_type(type_t t)
+              {
+                if (t >= type_t(base_non_terminal_index)) // this is a non-terminal
+                {
+                  std::string ret = ct::extract_types<get_string_for_type_t, Syntax>::type::find(t);
+                  if (ret.size())
+                    return "[" + ret + "]";
+                }
+                else if (t != neam::ct::alphyn::invalid_token_type)
+                {
+                  std::string ret = ct::extract_types<get_string_for_type_t, terminals>::type::find(t);
+                  if (ret.size())
+                    return "'" + ret + "'";
+                }
+                return "<invalid>";
+              }
 
               // the lexer //
 
@@ -510,9 +548,9 @@ namespace neam
         };
 
         /// \brief Fast way to use the bnf meta-parser
-        /// The \p BNFClass must have \e attributes (type attribute_db) and \e bnf_syntax (static constexpr const char []) defined
+        /// The \p BNFClass must have \e attributes (type attribute_db) and \e bnf_grammar (static constexpr const char []) defined
         template<typename BNFClass>
-        using generate_parser = typename bnf_meta_parser<typename BNFClass::attributes>::template generate_parser<BNFClass::bnf_syntax>;
+        using generate_parser = typename bnf_meta_parser<typename BNFClass::attributes>::template generate_parser<BNFClass::bnf_grammar>;
 
       } // namespace bnf
     } // namespace alphyn

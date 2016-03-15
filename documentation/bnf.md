@@ -91,7 +91,7 @@ And now the BNF-like grammar. It has been extended to support attributes and reg
 - The initial rule is the first one, whatever its name is
 
 ```c++
-  static constexpr neam::string_t bnf_syntax = R"(
+  static constexpr neam::string_t bnf_grammar = R"(
     start ::= sum regexp:'$'              [forward:0];
 
     sum   ::= prod                        [forward:0]
