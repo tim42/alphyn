@@ -66,7 +66,7 @@ namespace neam
         using token_type = neam::ct::alphyn::token<int>;
 
         /// \brief A BNF parser that generates lexer and parser for the input BNF grammar
-        /// \param TypeDB should be a attribute_db< attribute_db_entry< string, attribute >, ... >
+        /// \param AttributeDB should be a attribute_db< attribute_db_entry< string, attribute >, ... >
         /// \code bnf_meta_parser<AttributeDB>::generate_parser<BNFString> \endcode will generate the parser for the BNF grammar in BNFString
         /// \see generate_parser
         template<typename AttributeDB>
@@ -486,7 +486,8 @@ namespace neam
 
               using lexical_syntax = typename ct::extract_types<ct::alphyn::lexical_syntax, syntactic_unit_list>::type;
 
-              using skipper = ct::alphyn::white_space_skipper; // TODO, make it scriptable too
+              using skipper = neam::ct::alphyn::white_space_skipper;// TODO: make it scriptable
+
               using lexer = ct::alphyn::lexer<type>;
 
               // the parser //
