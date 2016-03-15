@@ -63,12 +63,12 @@ struct math_eval_bnf
     start ::= sum regexp:'$'              [forward:0];
 
     sum   ::= prod                        [forward:0]
-            | prod '+' sum                [add]
-            | prod '-' sum                [sub];
+            | sum '+' prod                [add]
+            | sum '-' prod                [sub];
 
     prod  ::= val                         [forward:0]
-            | val '*' prod                [mul]
-            | val '/' prod                [div];
+            | prod '*' val                [mul]
+            | prod '/' val                [div];
 
     val   ::= regexp:'[0-9]+(\.[0-9]*)?'  [atof]
             | '(' sum ')'                 [forward:1];
