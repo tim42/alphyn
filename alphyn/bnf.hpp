@@ -306,6 +306,7 @@ namespace neam
           template<typename Syntax, typename>
           struct create_output_type
           {
+            using token_type = ::neam::ct::alphyn::bnf::token_type;
             using type_t = typename token_type::type_t;
 
             static constexpr bool strmatch(const char *s, size_t s_index, size_t s_end_index, const char *o, size_t o_index, size_t o_end_index)
@@ -434,7 +435,7 @@ namespace neam
             // the output grammar
             struct type
             {
-              using token_type = alphyn::bnf::token_type; // the value is unused.
+              using token_type = ::neam::ct::alphyn::bnf::token_type;
               using type_t = typename token_type::type_t;
 
               static const char *get_name_for_token_type(type_t) { return "<[pouet:todo]>"; /* TODO */ }

@@ -171,13 +171,13 @@ using simple_type_db = type_db
 >;
 
 // a test string:
-constexpr neam::string_t tuple_str = "<int, float, uint, int, <long, long, double>>";
+constexpr neam::string_t tuple_str = "<int, float, uint, int, <long, <long>, double>>";
 
 using res_tuple = tuple_builder<simple_type_db>::parser::ct_parse_string<tuple_str>;                           // create a std::tuple from the string
 using res_type_list = tuple_builder<simple_type_db, neam::ct::type_list>::parser::ct_parse_string<tuple_str>;  // create a neam::ct::type_list from the same string
 
 // check that the tuple is correct:
-static_assert(std::is_same<res_tuple, std::tuple<int, float, unsigned int, int, std::tuple<long, long, double>>>::value, "invalid tuple type (did you change the string ?)");
+static_assert(std::is_same<res_tuple, std::tuple<int, float, unsigned int, int, std::tuple<long, std::tuple<long>, double>>>::value, "invalid tuple type (did you change the string ?)");
 
 int main(int /*argc*/, char **/*argv*/)
 {

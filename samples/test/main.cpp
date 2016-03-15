@@ -74,8 +74,12 @@ struct math_eval
       value = value * 10 + (s[i] - '0');
     if (s[i] == '.')
     {
+      float cpow = 10;
       for (size_t j = i + 1; j < end; ++j)
-        value += float(s[j] - '0') / float((j - i) * 10);
+      {
+        value += float(s[j] - '0') / cpow;
+        cpow *= 10;
+      }
     }
     return token_type {e_token_type::tok_number, return_type(value), s, index, end};
   }
@@ -126,13 +130,13 @@ struct math_eval
 
     production_rule_set<sum,
       production_rule<neam::ct::alphyn::forward_first_attribute, prod>,             // sum -> prod
-      production_rule<ALPHYN_ATTRIBUTE(&attr_add), sum, tok_add, prod>,             // sum -> sum + prod
-      production_rule<ALPHYN_ATTRIBUTE(&attr_sub), sum, tok_sub, prod>              // sum -> sum - prod
+      production_rule<ALPHYN_ATTRIBUTE(&attr_add), prod, tok_add, sum>,             // sum -> sum + prod
+      production_rule<ALPHYN_ATTRIBUTE(&attr_sub), prod, tok_sub, sum>              // sum -> sum - prod
     >,
     production_rule_set<prod,
       production_rule<neam::ct::alphyn::forward_first_attribute, val>,              // prod -> val
-      production_rule<ALPHYN_ATTRIBUTE(&attr_mul), prod, tok_mul, val>,             // prod -> prod * val
-      production_rule<ALPHYN_ATTRIBUTE(&attr_div), prod, tok_div, val>              // prod -> prod / val
+      production_rule<ALPHYN_ATTRIBUTE(&attr_mul), val, tok_mul, prod>,             // prod -> prod * val
+      production_rule<ALPHYN_ATTRIBUTE(&attr_div), val, tok_div, prod>              // prod -> prod / val
     >,
 
     production_rule_set<val,
