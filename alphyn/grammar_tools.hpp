@@ -73,9 +73,8 @@ namespace neam
         };
         /// \brief value == true if T is a non-terminal, false if it's a terminal
         template<typename SyntaxClass, typename SyntaxClass::token_type::type_t T>
-        struct _is_non_terminal
+        struct _is_non_terminal : public ct::is_in_list<typename SyntaxClass::grammar::non_terminal_list, embed::embed<typename SyntaxClass::token_type::type_t, T>>
         {
-          static constexpr bool value = !_is_terminal<SyntaxClass, T>::value;
         };
 
         /// \brief Retrieve the set of terminals which can appear as the first elements of any chain of rules matching NonTerminal
@@ -103,7 +102,7 @@ namespace neam
           using rules = typename rule_set::as_type_list; // get the list of rules from the rule-set
 
           // a nice filter pattern used to recursively apply _first on all non-terminals and keep present terminals in the list
-          template<typename...> struct _filter  { using type = ct::type_list<>; };
+          template<typename...> struct _filter  { using type_list = ct::type_list<>; };
 
           template<bool IsNonTerminal, bool IsBeingProcessed, typename Current>
           struct _apply
@@ -111,37 +110,44 @@ namespace neam
             // here we are a terminal (IsNonTerminal == false)
             // IsBeingProcessed doesn't matter for terminals
             using current_embed = typename Current::as_type_list::template get_type<0>;
-            using type = ct::type_list<current_embed>;
+            using list = ct::type_list<current_embed>;
           };
 
           template<typename Current, typename... Types>
-          struct _filter<Current, Types...>
-          {
-            using current_embed = typename Current::as_type_list::template get_type<0>;
-            using type = typename ct::merger
+          struct _filter<Current, Types...> :
+          public ct::merger
+          <
+            typename _apply
             <
-              typename _apply<_is_non_terminal<SyntaxClass, current_embed::value>::value, ct::is_in_list<Stack, current_embed>::value, Current>::type,
-              typename _filter<Types...>::type
-            >::type_list;
+              _is_non_terminal<SyntaxClass, Current::as_type_list::template get_type<0>::value>::value,
+              ct::is_in_list<Stack, typename Current::as_type_list::template get_type<0>>::value,
+              Current
+            >::list,
+            typename _filter<Types...>::type_list
+          >
+          {
           };
 
           // and finally the result:
-          using list = typename ct::extract_types<_filter, rules>::type::type::make_unique;
+          using list = typename ct::extract_types<_filter, rules>::type::type_list::make_unique;
         };
         template<typename SyntaxClass, typename SyntaxClass::token_type::type_t NonTerminal, typename Stack>
         template<typename Current>
         struct _first<SyntaxClass, NonTerminal, Stack>::_apply<true, true, Current>
         {
           // here we are a non-terminal, but that non-terminal is already being processed
-          using type = ct::type_list<>;
+          using list = ct::type_list<>;
         };
         template<typename SyntaxClass, typename SyntaxClass::token_type::type_t NonTerminal, typename Stack>
         template<typename Current>
-        struct _first<SyntaxClass, NonTerminal, Stack>::_apply<true, false, Current>
+        struct _first<SyntaxClass, NonTerminal, Stack>::_apply<true, false, Current> :
+        public _first // here we are a terminal
+        <
+          SyntaxClass,
+          Current::as_type_list::template get_type<0>::value,
+          typename Stack::template append<typename Current::as_type_list::template get_type<0>>
+        >
         {
-          // here we are a terminal
-          using current_embed = typename Current::as_type_list::template get_type<0>;
-          using type = typename _first<SyntaxClass, current_embed::value, typename ct::append_type<current_embed, Stack>::type>::list;
         };
 
         /// \brief Retrieve the set of terminals that can appear immediately after the non-terminal NonTerminal
@@ -340,19 +346,22 @@ namespace neam
           using type = typename wrap_production_rule_set<prod_rule_set, Position, FollowSet>::type;
         };
 
+        // for a terminal:
+        template<typename SyntaxClass, typename SyntaxClass::token_type::type_t Name, bool IsNonTerminal>
+        struct _first_or_name_switch
+        {
+          using list = ct::type_list<embed::embed<typename SyntaxClass::token_type::type_t, Name>>;
+        };
+          // for a non-terminal:
+        template<typename SyntaxClass, typename SyntaxClass::token_type::type_t Name>
+        struct _first_or_name_switch<SyntaxClass, Name, true> : public _first<SyntaxClass, Name>
+        {
+        };
+
         /// \brief _first if Name is a non-terminal, `type_list < embed::embed < type_t, Name>>` if Name is a terminal
         template<typename SyntaxClass, typename SyntaxClass::token_type::type_t Name>
-        struct _first_or_name
+        struct _first_or_name : public _first_or_name_switch<SyntaxClass, Name, _is_non_terminal<SyntaxClass, Name>::value>
         {
-          using type_t = typename SyntaxClass::token_type::type_t;
-
-          // for a terminal:
-          template<typename R, bool IsNonTerminal> struct _switch { using type = ct::type_list<embed::embed<type_t, Name>>; };
-          // for a non-terminal:
-          template<typename R> struct _switch<R, true> { using type = typename _first<SyntaxClass, Name>::list; };
-
-          // result:
-          using list = typename _switch<void, _is_non_terminal<SyntaxClass, Name>::value>::type;
         };
 
         // merge lookahead sets
@@ -366,19 +375,18 @@ namespace neam
           using type_t = typename SyntaxClass::token_type::type_t;
 
           template<typename PRW, bool HasFollowing>
-          struct _lookahead_switch
+          struct _lookahead_switch : public _first_or_name<SyntaxClass, PRW::as_type_list::template get_type<PRW::position + 1>::value>
           {
             // we have a following element
-            using type = typename _first_or_name<SyntaxClass, PRW::as_type_list::template get_type<PRW::position + 1>::value>::list;
           };
           template<typename PRW>
           struct _lookahead_switch<PRW, false>
           {
             // we don't have a following element
-            using type = LookAhead;
+            using list = LookAhead;
           };
           template<typename PRW>
-          using apply_lookahead = typename _lookahead_switch<PRW, (PRW::position < (PRW::as_type_list::size - 1))>::type;
+          using apply_lookahead = typename _lookahead_switch<PRW, (PRW::position < (PRW::as_type_list::size - 1))>::list;
 
           // get the lookahead list for subsequent application of _closure
           using ctx_look_ahead = typename PRWList::template direct_for_each<apply_lookahead>::flatten::make_unique;
@@ -392,10 +400,9 @@ namespace neam
 
           template<typename PRW>
           struct _nonterminal_switch_2<PRW, true>
+          : public wrap_non_terminal<SyntaxClass, PRW::as_type_list::template get_type<PRW::position>::value, 0, ctx_look_ahead>
           {
             // this is a non-terminal
-            static constexpr type_t next_elem = PRW::as_type_list::template get_type<PRW::position>::value;
-            using type = typename wrap_non_terminal<SyntaxClass, next_elem, 0, ctx_look_ahead>::type;
           };
 
           // Get the list of all non-terminals in the PRWList set
@@ -436,50 +443,32 @@ namespace neam
           using new_stack = typename Stack::template append_list<typename nonterminal_list::template direct_for_each<stack_elem>>;
 
           template<typename PRW, bool HasFollowing>
-          struct _sub_lookahead_switch
+          struct _sub_lookahead_switch : public _first_or_name<SyntaxClass, PRW::as_type_list::template get_type<PRW::position + 1>::value>
           {
             // we have a following element
-            using type = typename _first_or_name<SyntaxClass, PRW::as_type_list::template get_type<PRW::position + 1>::value>::list;
           };
           template<typename PRW>
           struct _sub_lookahead_switch<PRW, false>
           {
             // we don't have a following element
-            using type = ctx_look_ahead;
+            using list = ctx_look_ahead;
           };
           template<typename PRW>
-          using apply_sub_lookahead = typename _sub_lookahead_switch<PRW, (PRW::position < (PRW::as_type_list::size - 1))>::type;
+          using apply_sub_lookahead = typename _sub_lookahead_switch<PRW, (PRW::position < (PRW::as_type_list::size - 1))>::list;
 
           template<typename List, bool IsEmtpy>
-          struct sub_closure_result { using type = ct::type_list<>; };
+          struct sub_closure_result { using list = ct::type_list<>; };
           template<typename List>
-          struct sub_closure_result<List, false>
+          struct sub_closure_result<List, false> :
+          public _closure<SyntaxClass, List, typename List::template direct_for_each<apply_sub_lookahead>::flatten::make_unique, new_stack>
           {
-            using _ctx_look_ahead = typename List::template direct_for_each<apply_sub_lookahead>::flatten::make_unique;
-  //           using _ctx_look_ahead = ctx_look_ahead; // LALR ? SLR ? a mix between those two ? invalid ?
-
-            using type = typename _closure<SyntaxClass, List, _ctx_look_ahead, new_stack>::list;
           };
 
           template<typename X>
-          using apply_sub_closure = sub_closure_result<X, false>;
+          using apply_sub_closure = typename sub_closure_result<X, false>::list;
 
           // the result
-          using list = typename nonterminal_list::template for_each<apply_sub_closure>::flatten::template prepend_list<PRWList>::make_unique;
-          using production_rules = PRWList; // the input
-        };
-
-        /// \brief From a _closure result, retrieve the list of possible transition
-        /// The result type is a... ct::type_list< _transition... > placed in `type`
-        template<typename ClosureResultList>
-        struct _get_transitions
-        {
-          template<typename... PRW>
-          struct _transition_getter
-          {
-            using type = typename ct::type_list<typename PRW::transition...>::flatten::make_unique;
-          };
-          using type = typename ct::extract_types<_transition_getter, ClosureResultList>::type::type;
+          using list = typename nonterminal_list::template direct_for_each<apply_sub_closure>::flatten::make_unique::template prepend_list<PRWList>::make_unique;
         };
 
         /// \brief An edge in the automaton
@@ -497,41 +486,56 @@ namespace neam
         {
           using type_t = typename SyntaxClass::token_type::type_t;
 
+          template<typename X>
+          using transition_getter = typename X::transition;
+
           // the list of possible transitions
-          using transition_list = typename _get_transitions<ClosureResultList>::type;
+          using transition_list = typename ClosureResultList::template direct_for_each<transition_getter>::flatten::make_unique;
 
           // retrieve the name of a transition
-          template<typename TR> struct name_getter { using type = embed::embed<typename TR::type_t, TR::name>; };
+          template<typename TR> using name_getter = embed::embed<typename TR::type_t, TR::name>;
           // retrieve the production_rule of a transition
-          template<typename TR> struct production_rule_getter { using type = typename TR::production_rule; };
+          template<typename TR> using production_rule_getter = typename TR::production_rule;
 
           // filter a list of transition by a name
           template<type_t ToMatch, typename TR> struct name_filter { static constexpr bool value = (ToMatch == TR::name); };
 
           // create a list of all possible names (each name occurs at most one time)
-          using transition_names = typename transition_list::template for_each<name_getter>::make_unique;
+          using transition_names = typename transition_list::template direct_for_each<name_getter>::make_unique;
+
+          template<type_t ToMatch, typename List>
+          struct get_name_list_filter
+          {
+            template<typename X> using filter = name_filter<ToMatch, X>;
+            using type = typename List::template filter_by<filter>;
+          };
 
           // make a transition_list suitable for applying _closure_list_nl on it:
           // gather transitions by their names (create lists per name)
-          template<typename List, typename... Names> struct _transition_list_builder { using list = List; }; // final
-          template<typename List, typename CurrentName, typename... Names>
-          struct _transition_list_builder<List, CurrentName, Names...>
-          {
-            template<typename X> using name_list_filter = name_filter<CurrentName::value, X>;
-            // the list of prod_rule_wrapper of all the transitions that matches the name CurrentName
-            using matching_list = typename transition_list::template filter_by<name_list_filter>::template for_each<production_rule_getter>::make_unique;
-
-            using new_list = typename ct::append_type
+          template<typename List, typename Transitions>
+          struct _transition_list_builder :
+          public _transition_list_builder
+          <
+            typename List::template append
             <
-              _transition<SyntaxClass, CurrentName::value, matching_list>,
-              List
-            >::type;
-
-            using list = typename _transition_list_builder<new_list, Names...>::list;
+              _transition
+              <
+                SyntaxClass, Transitions::front::value,
+                // the list of prod_rule_wrapper of all the transitions that matches the name CurrentName
+                typename get_name_list_filter<Transitions::front::value, transition_list>::type::template direct_for_each<production_rule_getter>::make_unique
+              >
+            >,
+            typename Transitions::pop_front
+          >
+          {
           };
-          template<typename... X>
-          using transition_list_builder = typename _transition_list_builder<ct::type_list<>, X...>::list;
-          using grouped_transition_list = typename ct::extract_types<transition_list_builder, transition_names>::type;
+          template<typename List>
+          struct _transition_list_builder<List, ct::type_list<>>
+          {
+            using list = List;
+          };
+
+          using grouped_transition_list = typename _transition_list_builder<ct::type_list<>, transition_names>::list;
 
           /// \brief The maker of the edges
           template<typename List, typename... Transitions>
@@ -541,23 +545,28 @@ namespace neam
           };
           template<typename List, typename CurrentTransition, typename... Transitions>
           struct _edges_maker<List, CurrentTransition, Transitions...>
-          {
-            using state_for_transition = _state
+          : public _edges_maker
+          <
+            typename ct::append_type
             <
-              SyntaxClass,
-              typename _closure
+              _edge
               <
-                SyntaxClass,
-                typename CurrentTransition::production_rule // list. In fact, this is a list. This is a misuse of _transition, but it works.
-              >::list
-            >;
-            using edge_for_transition = _edge<SyntaxClass, CurrentTransition::name, state_for_transition>;
-            using new_list = typename ct::append_type<edge_for_transition, List>::type;
-
-            using next = _edges_maker<new_list, Transitions...>;
-
-            // the results
-            using list = typename next::list;
+                SyntaxClass, CurrentTransition::name,
+                _state
+                <
+                  SyntaxClass,
+                  typename _closure
+                  <
+                    SyntaxClass,
+                    typename CurrentTransition::production_rule // list. In fact, this is a list. This is a misuse of _transition, but it works.
+                  >::list
+                >
+              >,
+              List
+            >::type,
+            Transitions...
+          >
+          {
           };
 
           template<typename... X>
@@ -575,15 +584,17 @@ namespace neam
           // `avoiding headaches finding the reason why the fucking ::list wasn't
           // a property of _get_list<>.
           // I can't get clang to work with this.
-          template<typename S, typename List, typename... Edges> struct _graph_walker { using list = List; }; // final
+          template<typename S, typename List, typename... Edges> struct _graph_walker : public List {}; // final
 
           template<typename S, typename List, typename Current, typename... Edges>
-          struct _graph_walker<S, List, Current, Edges...>
+          struct _graph_walker<S, List, Current, Edges...> : public
+          _graph_walker
+          <
+            _state,
+            typename Current::state::template get_list<List>,
+            Edges...
+          >
           {
-            using current_state = typename Current::state;
-
-            using new_list = typename current_state::template get_list<List>;
-            using list = typename _graph_walker<_state, new_list, Edges...>::list;
           };
 
           template<typename List, bool IsInList>
@@ -591,13 +602,14 @@ namespace neam
           {
             using list = List;
           };
+
           template<typename List>
-          struct _get_list<List, false>
+          struct _get_list<List, false> 
           {
-            using new_list = typename ct::append_type<_state, List>::type;
+            using new_list = typename List::template append<_state>;
 
             template<typename... X>
-            using initial_graph_walker = typename _graph_walker<_state, new_list, X...>::list;
+            using initial_graph_walker = _graph_walker<_state, new_list, X...>;
             using list = typename ct::extract_types<initial_graph_walker, typename _edges_struct::list>::type;
           };
 
@@ -621,7 +633,7 @@ namespace neam
           // type is ct::type_list of prod_rule_wrapper
           using non_final_rules = typename ClosureResultList::template remove_if<is_a_final_rule>;
 
-          // export the graph as a ct::type_list<>
+          // export the graph as a ct::type_list<...>
           using as_type_list = get_list<ct::type_list<>>;
         };
       } // namespace internal
@@ -655,11 +667,6 @@ namespace neam
         /// \note you'll have to define a look-ahead (a good choice would be `follow< NT >` or `ct::type_list<>` whichever is the best for you)
         template<type_t NT, typename LookAhead>
         using closure_la = typename internal::_closure<SyntaxClass, typename internal::wrap_non_terminal<SyntaxClass, NT>::type, LookAhead>::list;
-
-        /// \brief For the result-type of closure<>, it give the list of all possible transition
-        /// the transition type is _transition
-        template<typename ClosureResultList>
-        using get_transition_list = typename internal::_get_transitions<ClosureResultList>::type;
 
         /// \brief A type that represents the LR(1) automaton (/graph)
         /// It starts from the initial non-terminal (as defined by the grammar)

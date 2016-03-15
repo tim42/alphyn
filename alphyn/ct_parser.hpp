@@ -214,16 +214,13 @@ namespace neam
 
           // Lookup productions and match them with the Stack
           template<typename List, typename Result = void, bool IsAlreadyDone = false, typename = void>
-          struct production_rule_matcher
+          struct production_rule_matcher : public production_rule_matcher
+          <
+            typename List::pop_front,
+            ct_stack_production_rule_matcher<Stack, typename List::front, TLL>,
+            ct_stack_production_rule_matcher<Stack, typename List::front, TLL>::value
+          >
           {
-            using current = typename List::front;
-            using remaining = typename List::pop_front;
-
-            using matcher_result = ct_stack_production_rule_matcher<Stack, current, TLL>;
-            using next = production_rule_matcher<remaining, matcher_result, matcher_result::value>;
-            constexpr static bool has_matched = next::has_matched;
-            using result = typename next::result;
-            using dest_state = typename next::dest_state;
           };
 
           struct bad_end
@@ -256,33 +253,29 @@ namespace neam
             using result = Result;
           };
 
-          template<typename CTLL, typename CSTack, type_t ToMatch, typename List, typename OList, bool IsPost = false>
-          struct on_edge
+          template<typename CTLL, typename CSTack, type_t ToMatch, typename List, typename OList, bool IsPost, bool Recurse = true>
+          struct recurse_switcher :
+          public ct_parser_rec
+          <
+            SyntaxClass, typename List::front::state,
+            typename std::conditional<!IsPost, typename CTLL::next, CTLL>::type,
+            typename std::conditional<!IsPost, typename CSTack::template prepend<ct_stack_entry<type_t, CTLL::token.type, CTLL, State>>, CSTack>::type
+          >
           {
-            using current = typename List::front;
+          };
 
-            template<bool Recurse = false, typename ParserRec = void>
-            struct recurse_switcher
-            {
-              using next_list = typename List::pop_front;
-              using res = on_edge<CTLL, CSTack, ToMatch, next_list, OList, IsPost>;
-            };
 
-            template<typename ParserRec>
-            struct recurse_switcher<true, ParserRec>
-            {
-              using res = ParserRec;
-            };
-
-            using rec_tll = typename std::conditional<!IsPost, typename CTLL::next, CTLL>::type;
-            using rec_stack = typename std::conditional<!IsPost, typename CSTack::template prepend<ct_stack_entry<type_t, CTLL::token.type, CTLL, State>>, CSTack>::type;
-
-            using rec_res = recurse_switcher<(ToMatch == current::name), ct_parser_rec<SyntaxClass, typename current::state, rec_tll, rec_stack>>;
-
-            // results
-            using stack = typename rec_res::res::stack;
-            using tll = typename rec_res::res::tll;
-            using dest_state = typename rec_res::res::dest_state;
+          template<typename CTLL, typename CSTack, type_t ToMatch, typename List, typename OList, bool IsPost = false>
+          struct on_edge : public recurse_switcher
+          <
+            CTLL, CSTack, ToMatch, List, OList, IsPost,
+            (ToMatch == List::front::name)
+          >
+          {
+          };
+          template<typename CTLL, typename CSTack, type_t ToMatch, typename List, typename OList, bool IsPost>
+          struct recurse_switcher<CTLL, CSTack, ToMatch, List, OList, IsPost, false> : public on_edge<CTLL, CSTack, ToMatch, typename List::pop_front, OList, IsPost>
+          {
           };
           template<typename CTLL, typename CSTack, type_t ToMatch, typename OList>
           struct on_edge<CTLL, CSTack, ToMatch, ct::type_list<>, OList, false> // end, end of the end, failed
@@ -292,12 +285,9 @@ namespace neam
             using dest_state = void;
           };
           template<typename CTLL, typename CSTack, type_t ToMatch, typename OList>
-          struct on_edge<CTLL, CSTack, ToMatch, ct::type_list<>, OList, true> // end, try with IsPost = false
+          struct on_edge<CTLL, CSTack, ToMatch, ct::type_list<>, OList, true> 
+          : public on_edge<CTLL, CSTack, CTLL::token.type, OList, OList, false> // end, try with IsPost = false
           {
-            using res = on_edge<CTLL, CSTack, CTLL::token.type, OList, OList, false>;
-            using stack = typename res::stack;
-            using tll = typename res::tll;
-            using dest_state = typename res::dest_state;
           };
 
           // handle the recursion, ...
@@ -308,18 +298,27 @@ namespace neam
             using initial_rec = on_edge<TLL, Stack, TLL::token.type, typename State::edges, typename State::edges, false>;
 
             template<bool Continue, typename Last = initial_rec>
-            struct iterate
+            struct iterate : public
+            iterate
+            <
+              std::is_same
+              <
+                typename on_edge<typename Last::tll, typename Last::stack, Last::stack::front::type, typename State::edges, typename State::edges, true>::dest_state,
+                State
+              >::value,
+              on_edge<typename Last::tll, typename Last::stack, Last::stack::front::type, typename State::edges, typename State::edges, true>
+             >
             {
-              using current = on_edge<typename Last::tll, typename Last::stack, Last::stack::front::type, typename State::edges, typename State::edges, true>;
-              using res = typename iterate<std::is_same<typename current::dest_state, State>::value, current>::res;
+//               using current = on_edge<typename Last::tll, typename Last::stack, Last::stack::front::type, typename State::edges, typename State::edges, true>;
+//               using res = typename iterate<std::is_same<typename current::dest_state, State>::value, current>::res;
             };
             template<typename Last>
-            struct iterate<false, Last>
+            struct iterate<false, Last> : public Last
             {
-              using res = Last;
+//               using res = Last;
             };
 
-            using res = typename iterate<std::is_same<typename initial_rec::dest_state, State>::value, initial_rec>::res;
+            using res = iterate<std::is_same<typename initial_rec::dest_state, State>::value, initial_rec>;
 
             using stack = typename res::stack;
             using tll = typename res::tll;
