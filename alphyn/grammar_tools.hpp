@@ -296,7 +296,6 @@ namespace neam
 
           using first_set = typename _first<SyntaxClass, PRName>::list;
           using follow_set = FollowSet; // LR(1)
-  //         using follow_set = typename _follow<SyntaxClass, PRName>::list; // SLR
 
           // Indicate whether or not the Position is a past-the-end position (we can't have a transition)
           static constexpr bool is_final = (position == as_type_list::size);
@@ -318,6 +317,9 @@ namespace neam
 
           // there, we list the possible transition (aka the next *terminal, if any). It has a ct::type_list<transition> or a ct::type_list<> type (if is_final == true).
           using transition = typename _switch<position + 1, is_final>::type;
+
+          template<typename NewFollowSet>
+          using set_follow_set = prod_rule_wrapper<SyntaxClass, PRName, Position, ProdRule, NewFollowSet>;
         };
 
         /// \brief Transform a production_rule_set into a ct::type_list of prod_rule_wrappers
@@ -366,10 +368,10 @@ namespace neam
 
         // merge lookahead sets
         template<typename X>
-        struct forward_lookahead { using type = typename X::follow_set; };
+        using forward_lookahead = typename X::follow_set;
 
         /// \brief Compute the LR(1) closure for a given prod_rule_wrapper<> (as PRW)
-        template<typename SyntaxClass, typename PRWList, typename LookAhead = typename PRWList::template for_each<forward_lookahead>::flatten::make_unique, typename Stack = ct::type_list<>>
+        template<typename SyntaxClass, typename PRWList, typename LookAhead = typename PRWList::template direct_for_each<forward_lookahead>::flatten::make_unique, typename Stack = ct::type_list<>>
         struct _closure
         {
           using type_t = typename SyntaxClass::token_type::type_t;
@@ -467,8 +469,28 @@ namespace neam
           template<typename X>
           using apply_sub_closure = typename sub_closure_result<X, false>::list;
 
+          using pre_list = typename nonterminal_list::template direct_for_each<apply_sub_closure>::flatten::template prepend_list<PRWList>;
+
+          // test if two prw matches (excluding the follow_set)
+          template<typename ToFind, typename X>
+          struct is_same_prw
+          {
+            static constexpr bool value = (ToFind::rule_name == X::rule_name)
+                                        && std::is_same<typename ToFind::as_type_list, typename X::as_type_list>::value;
+          };
+
+          // merge the follow sets
+          template<typename X>
+          struct prw_consolidate
+          {
+            template<typename Y> using _is_same_prw = is_same_prw<X, Y>;
+            using new_follow_set = typename pre_list::template filter_by<_is_same_prw>::template direct_for_each<forward_lookahead>::flatten::make_unique;
+
+            using type = typename X::template set_follow_set<new_follow_set>;
+          };
+
           // the result
-          using list = typename nonterminal_list::template direct_for_each<apply_sub_closure>::flatten::make_unique::template prepend_list<PRWList>::make_unique;
+          using list = typename pre_list::template for_each<prw_consolidate>::make_unique;
         };
 
         /// \brief An edge in the automaton
@@ -571,7 +593,7 @@ namespace neam
 
           template<typename... X>
           using edges_maker = _edges_maker<ct::type_list<>, X...>;
-          using _edges_struct = typename ct::extract_types<edges_maker, grouped_transition_list>::type;
+          using edges = typename ct::extract_types<edges_maker, grouped_transition_list>::type::list;
 
           template<typename PRW> struct is_a_final_rule { static constexpr bool value = PRW::is_final; };
 
@@ -610,7 +632,7 @@ namespace neam
 
             template<typename... X>
             using initial_graph_walker = _graph_walker<_state, new_list, X...>;
-            using list = typename ct::extract_types<initial_graph_walker, typename _edges_struct::list>::type;
+            using list = typename ct::extract_types<initial_graph_walker, edges>::type;
           };
 
           template<typename List>
@@ -619,7 +641,7 @@ namespace neam
           // // public interface below: // //
 
           // the edges to other states (a ct::type_list of type _edge<>)
-          using edges = typename _edges_struct::list;
+          // using edges = ...;
 
           // the (wrapped/transformed) productions rules of the current state
           // type is ct::type_list of prod_rule_wrapper
