@@ -5,7 +5,7 @@
 
 The lexer's job is to split a string into a list of "token".
 
-For the string `56 + 8*3`, a lexer for mathematical expression will create the following list of tokens: `56`, `+`, `8`, `*` and `3`.
+For the string `56 + 8*3`, a lexer for mathematical expressions will create the following list of tokens: `56`, `+`, `8`, `*` and `3`.
 
 Alphyn needs a lexer in order to have a parser. So, here is how you create a lexer for simple mathematical expressions with alphyn:
 
@@ -19,14 +19,12 @@ struct math_eval
 {
 ```
 
-This tells alphyn what kind of token you want the lexer to create. As we don't have special needs, we simply use the default token class
-and tell alphyn that this token will hold floating point as optional value. (The default token class can hold any default-constructible objects)
+This tells alphyn what kind of token you want the lexer to create. As we don't have special needs, we simply use the default token class and tell alphyn that this token will hold floating point as optional value. (The default token class can hold any default-constructible objects). You can use any token type that has a compatible interface.
 ```c++
   using token_type = neam::ct::alphyn::token<float>;
 ```
 
-This `enum` is not mandatory, but this nicely describe the different terminals and non-terminals
-the syntax and the grammar will have.
+This `enum` is not mandatory, but this nicely describes the different terminals and non-terminals the syntax and the grammar will have.
 ```c++
   using type_t = typename token_type::type_t;
   enum e_token_type : type_t
@@ -45,7 +43,7 @@ the syntax and the grammar will have.
   };
 ```
 
-This isn't mandatory, it's simply to have possibly nice error messages
+This isn't mandatory, it's simply to have (possibly) nice error messages
 ```c++
   static std::string get_name_for_token_type(type_t t)
   {
@@ -69,12 +67,12 @@ This isn't mandatory, it's simply to have possibly nice error messages
   }
 ```
 
-Here we enter in the realm of the lexer.
+We now enter in the realm of the lexer.
 
-This function is a small utility that transform the range of a string into a floating-point number.
+This function is a small utility that transforms a string into a floating-point number.
 It is called by the lexer when some special token needs to be generated.
 You can write constexpr and non-constexpr functions, but I tend to prefer constexpr ones for simple tasks.
-It is not mandatory to have those functions as members (you can use any function with the correct signature).
+It is not mandatory to have those functions as members (you can use any function with a matching signature).
 ```c++
   static constexpr token_type e_number(const char *s, size_t index, size_t end)
   {
@@ -85,19 +83,23 @@ It is not mandatory to have those functions as members (you can use any function
       value = value * 10 + (s[i] - '0');
     if (s[i] == '.')
     {
-      for (size_t j = i + 1; j < end; ++j)
-        value += float(s[j] - '0') / float((j - i) * 10);
+      float cpow = 10;
+      for (size_t j = i + 1; j < tok.end_index; ++j)
+      {
+        value += float(tok.s[j] - '0') / cpow;
+        cpow *= 10;
+      }
     }
     return token_type {e_token_type::tok_number, value, s, index, end};
   }
 ```
 
-Then we have regular expression. Again, you can put them anywhere you like, the only restriction is
-it **must** be `constexpr neam::string_t`. (`neam::string_t` is an alias to `char[]`)
+Then we have regular expressions. Again, you can put them anywhere you want, the only restriction is
+it **must** be a `constexpr neam::string_t`. (`neam::string_t` is an alias to `char[]`)
 
 Please also note that even if you may use some complex regular expressions, they are transformed into code
 at the compilation, so for complex regexp, more code will be generated (it this will possibly be slower).
-The regular expressions used by alphyn are greedy.
+The regular expressions used by alphyn have greedy + and * operators.
 ```c++
   // a regular expression for matching numbers:
   constexpr static neam::string_t re_number = "[0-9]+(\\.[0-9]*)?";
@@ -108,7 +110,7 @@ The regular expressions used by alphyn are greedy.
 This part is mandatory: it's what the lexer will use to transform a string into a list of token.
 We will break down a line to see what this mean:
  - `neam::ct::alphyn::syntactic_unit<...>`: this type will hold all the information alphyn needs to generate a particular token.
-   You may have more than one for a single token type.
+   You may have more than one `syntactic_unit` for a single token type.
  - `neam::ct::alphyn::letter<'+'>` or `neam::ct::alphyn::letter<'(', '['>`
    or `neam::ct::alphyn::regexp<re_number>` or `neam::ct::alphyn::string<str_keyword_while>`:
    this describe what letter, string or regular expression must match in order to generate a token.
@@ -118,7 +120,8 @@ We will break down a line to see what this mean:
  - `token_type`: mandatory. It tells the lexical syntax the token_type used by the lexer.
  - `token_type::generate_token_with_type<e_token_type::tok_add>`: If you use the default token class,
    this will create a token with the corresponding type and no value.
- - `e_number`: If you need a value, you must give a function that will create a token for the lexer.
+ - `e_number`: If you need a special operation to generate the token, you must give a function that will create a token for the lexer.
+
 ```c++
   using lexical_syntax = neam::ct::alphyn::lexical_syntax
   <
@@ -161,9 +164,9 @@ There's two way to use the lexer. You can both use it to construct a "recursive"
 or asking it to generate a list of token on the fly (at both compile-time and runtime).
 
 `math_eval::lexer::get_lazy_lexer(const char *string, size_t start_index = 0)` will mostly be the only function you will use.
-It returns an instance of `math_eval::lexer::lazy_lexem_list` with the first token.
+It returns an instance of `math_eval::lexer::lazy_lexem_list` that describes the first token.
 The lexing process is done only when you call `get_next()` on a lazy_lexem_list.
-You can query for the token by using `get_token()` and check if the token is the last token with `is_last()`.
+You can query the token by using `get_token()` and check if the token is the last token with `is_last()`.
 
 `math_eval::lexer::ct_lexem_list<const char *String, size_t StartIndex = 0>` is also here in the case you absolutely need
 an overkill compile-time token list that fails the compilation on syntax error.
