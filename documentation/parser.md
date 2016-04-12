@@ -5,7 +5,7 @@
 
 I will assume that you've read [that almost english thing on the lexer](lexer.md).
 
-The parser job is to transform the list of token that the lexer has output and transform it into something called an AST (abstract syntax tree).
+The parser job is to transform the list of token that the lexer has generated and transform it into something called an AST (abstract syntax tree).
 The whole lexer/parse job can be summed-up by *"it takes a string as input and output something a computer can use"*.
 
 To create a parser with alphyn, you must have a class that defines a lexer and extend it with the grammar.
@@ -39,11 +39,11 @@ The `const token_type &` at the second position is simply the token of the opera
 ```
 
 
-And the grammar.
+And now the grammar:
 
 Alphyn uses attributes to extend the grammar. It also define some currently used attributes like
-`forward_attribute<Index>` that forwards the value of a given terminal or non-terminal as result of the production.
-For the production `val -> ( sum )` it forwards the value of `sum` as the value of `val`.
+`forward_attribute<Index>` that forwards the given terminal or non-terminal as result of the production.
+For the production `val -> ( sum )` it forwards `sum` as the result of `val`.
 
 There's also `value_forward_attribute<Index>` that forwards the value of a token.
 
